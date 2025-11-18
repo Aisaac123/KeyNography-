@@ -1,216 +1,598 @@
-<x-filament::page>
-    <div class="grid gap-6 md:grid-cols-1 lg:grid-cols-3">
+<x-filament-panels::page>
+    <div class="max-w-5xl mx-auto space-y-8">
 
-        {{-- SECCIÓN 1: INFECTAR --}}
-        <div class="space-y-6">
-            <form wire:submit="embedMessage">
-                {{ $this->embedForm }}
-            </form>
+        {{-- Header Principal --}}
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-8 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none">
+            <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgwLDAsMCwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40"></div>
+            <div class="relative flex items-center gap-6">
+                <div class="flex-shrink-0">
+                    <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center border border-slate-300 dark:border-slate-600/50 shadow-lg shadow-black/5 dark:shadow-black/20">
+                        <x-heroicon-o-lock-closed class="w-8 h-8 text-slate-700 dark:text-slate-300"/>
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">Sistema de Esteganografía Básica</h1>
+                    <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                        Oculta y extrae mensajes secretos en imágenes y audio usando técnicas LSB.
+                        Analiza archivos con inteligencia artificial para detectar contenido oculto.
+                    </p>
+                </div>
+            </div>
+        </div>
 
-            @if($embedResult)
-                <x-filament::section>
-                    <x-slot name="heading">
-                        <div class="flex items-center gap-2">
-                            <x-heroicon-o-check-circle class="w-6 h-6 text-success-500"/>
-                            <span>Archivo Infectado</span>
-                        </div>
-                    </x-slot>
+        {{-- ============================================ --}}
+        {{-- SECCIÓN: INFECTAR --}}
+        {{-- ============================================ --}}
+        <div class="space-y-4">
+            <div class="flex items-center gap-3 px-1">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                    <x-heroicon-o-lock-closed class="w-5 h-5 text-slate-600 dark:text-slate-400"/>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Ocultar Mensaje</h2>
+                    <p class="text-xs text-slate-600 dark:text-slate-400">Inserta contenido secreto en archivos multimedia</p>
+                </div>
+            </div>
 
+            <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+                <div class="p-6">
+                    <form wire:submit="embedMessage">
+                        {{ $this->embedForm }}
+                    </form>
+                </div>
+
+                @if($embedResult)
                     @php
                         $result = json_decode($embedResult, true);
                     @endphp
 
-                    <div class="space-y-4">
-                        {{-- Preview del archivo --}}
-                        <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div class="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center">
+                                <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-600 dark:text-emerald-400"/>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Proceso Completado</h3>
+                                <p class="text-xs text-slate-600 dark:text-slate-400">El archivo ha sido procesado exitosamente</p>
+                            </div>
+                        </div>
+
+                        <div class="mb-5">
                             @if(str_ends_with($result['file'], '.wav'))
-                                <audio controls class="w-full">
-                                    <source src="{{ $result['file'] }}" type="audio/wav">
-                                </audio>
+                                <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                                    <div class="flex items-center gap-2 mb-3 text-xs text-slate-600 dark:text-slate-400">
+                                        <x-heroicon-o-musical-note class="w-4 h-4"/>
+                                        <span class="font-medium">Audio con mensaje oculto</span>
+                                    </div>
+                                    <audio controls class="w-full">
+                                        <source src="{{ $result['file'] }}" type="audio/wav">
+                                    </audio>
+                                </div>
                             @else
-                                <img src="{{ $result['file'] }}" alt="Infected File" class="w-full h-auto">
+                                <div class="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-900">
+                                    <img src="{{ $result['file'] }}" alt="Infected Image" class="w-full h-auto">
+                                </div>
                             @endif
                         </div>
 
-                        {{-- Estadísticas --}}
-                        <dl class="grid grid-cols-2 gap-4">
-                            <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                                <dt class="text-xs text-gray-500 dark:text-gray-400">Tamaño del Mensaje</dt>
-                                <dd class="text-lg font-semibold text-gray-900 dark:text-white">{{ $result['payload_size'] }} bytes</dd>
+                        <div class="grid grid-cols-2 gap-4 mb-5">
+                            <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                                <div class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tamaño del Payload</div>
+                                <div class="text-2xl font-bold text-slate-900 dark:text-white">{{ $result['payload_size'] }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-500">bytes</div>
                             </div>
-                            <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                                <dt class="text-xs text-gray-500 dark:text-gray-400">Capacidad Usada</dt>
-                                <dd class="text-lg font-semibold text-gray-900 dark:text-white">{{ $result['capacity_used'] }}%</dd>
-                            </div>
-                        </dl>
 
-                        {{-- Botón de descarga --}}
+                            <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                                <div class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Capacidad Utilizada</div>
+                                <div class="text-2xl font-bold text-slate-900 dark:text-white">{{ $result['capacity_used'] }}%</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-500">del total disponible</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-5">
+                            <div class="flex items-center justify-between text-xs mb-2">
+                                <span class="text-slate-600 dark:text-slate-400 font-medium">Capacidad</span>
+                                <span class="font-semibold text-slate-900 dark:text-white">{{ $result['capacity_used'] }}%</span>
+                            </div>
+                            <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                <div class="h-full rounded-full bg-slate-900 dark:bg-slate-300 transition-all duration-500"
+                                     style="width: {{ $result['capacity_used'] }}%">
+                                </div>
+                            </div>
+                        </div>
+
                         <x-filament::button
                             href="{{ $result['file'] }}"
                             download
-                            color="success"
+                            color="gray"
                             icon="heroicon-o-arrow-down-tray"
+                            size="lg"
                             class="w-full"
                         >
-                            Descargar Archivo Infectado
+                            Descargar Archivo Procesado
                         </x-filament::button>
                     </div>
-                </x-filament::section>
-            @endif
+                @endif
+            </div>
         </div>
 
-        {{-- SECCIÓN 2: EXTRAER --}}
-        <div class="space-y-6">
-            <form wire:submit="extractMessage">
-                {{ $this->extractForm }}
-            </form>
+        {{-- ============================================ --}}
+        {{-- SECCIÓN: EXTRAER --}}
+        {{-- ============================================ --}}
+        <div class="space-y-4">
+            <div class="flex items-center gap-3 px-1">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                    <x-heroicon-o-eye class="w-5 h-5 text-slate-600 dark:text-slate-400"/>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Extraer Mensaje</h2>
+                    <p class="text-xs text-slate-600 dark:text-slate-400">Revela el contenido oculto en archivos</p>
+                </div>
+            </div>
 
-            @if($extractResult)
-                <x-filament::section>
-                    <x-slot name="heading">
-                        <div class="flex items-center gap-2">
-                            <x-heroicon-o-eye class="w-6 h-6 text-success-500"/>
-                            <span>Mensaje Extraído</span>
-                        </div>
-                    </x-slot>
+            <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+                <div class="p-6">
+                    <form wire:submit="extractMessage">
+                        {{ $this->extractForm }}
+                    </form>
+                </div>
 
+                @if($extractResult)
                     @php
                         $result = json_decode($extractResult, true);
                     @endphp
 
-                    <div class="space-y-4">
-                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
-                            <p class="text-sm font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
-                                {{ $result['message'] ?: 'No se encontró mensaje' }}
-                            </p>
+                    <div class="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                                <x-heroicon-m-document-text class="w-5 h-5 text-slate-600 dark:text-slate-300"/>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Mensaje Recuperado</h3>
+                                <p class="text-xs text-slate-600 dark:text-slate-400">Contenido extraído del archivo</p>
+                            </div>
                         </div>
 
-                        <div class="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                            <span>Longitud: {{ $result['length'] }} caracteres</span>
-                            <x-filament::button
-                                size="sm"
-                                color="gray"
-                                icon="heroicon-o-clipboard"
-                                wire:click="$dispatch('copy-to-clipboard', { text: '{{ addslashes($result['message']) }}' })"
-                            >
-                                Copiar
-                            </x-filament::button>
-                        </div>
-                    </div>
-                </x-filament::section>
-            @endif
-        </div>
+                        <div class="relative mb-5">
+                            <div class="absolute top-3 right-3 z-10">
+                                <button
+                                    type="button"
+                                    wire:click="$dispatch('copy-to-clipboard', { text: '{{ addslashes($result['message']) }}' })"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                                >
+                                    <x-heroicon-o-clipboard class="w-3.5 h-3.5"/>
+                                    Copiar
+                                </button>
+                            </div>
 
-        {{-- SECCIÓN 3: ANALIZAR --}}
-        <div class="space-y-6">
-            <form wire:submit="analyzeFile">
-                {{ $this->analyzeForm }}
-            </form>
+                            <div class="rounded-lg bg-slate-900 dark:bg-slate-950 border border-slate-700 dark:border-slate-800 overflow-hidden">
+                                <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-700 dark:border-slate-800 bg-slate-800 dark:bg-slate-900">
+                                    <div class="flex items-center gap-1.5">
+                                        <div class="w-2.5 h-2.5 rounded-full bg-slate-600 dark:bg-slate-700"></div>
+                                        <div class="w-2.5 h-2.5 rounded-full bg-slate-600 dark:bg-slate-700"></div>
+                                        <div class="w-2.5 h-2.5 rounded-full bg-slate-600 dark:bg-slate-700"></div>
+                                    </div>
+                                    <span class="ml-2 text-xs text-slate-400 dark:text-slate-500 font-mono">mensaje-oculto.txt</span>
+                                </div>
 
-            @if($analyzeResult)
-                <x-filament::section>
-                    <x-slot name="heading">
-                        <div class="flex items-center gap-2">
-                            <x-heroicon-o-magnifying-glass class="w-6 h-6 text-warning-500"/>
-                            <span>Resultado del Análisis</span>
-                        </div>
-                    </x-slot>
-
-                    <div class="space-y-4">
-                        {{-- Veredicto --}}
-                        <div class="rounded-lg p-4 @if($analyzeResult['is_infected']) bg-danger-50 dark:bg-danger-950 @else bg-success-50 dark:bg-success-950 @endif">
-                            <div class="flex items-center gap-3 mb-2">
-                                @if($analyzeResult['is_infected'])
-                                    <x-heroicon-o-exclamation-triangle class="w-8 h-8 text-danger-600 dark:text-danger-400"/>
-                                @else
-                                    <x-heroicon-o-shield-check class="w-8 h-8 text-success-600 dark:text-success-400"/>
-                                @endif
-                                <div>
-                                    <h3 class="text-lg font-bold @if($analyzeResult['is_infected']) text-danger-700 dark:text-danger-300 @else text-success-700 dark:text-success-300 @endif">
-                                        {{ $analyzeResult['verdict'] }}
-                                    </h3>
-                                    <p class="text-sm @if($analyzeResult['is_infected']) text-danger-600 dark:text-danger-400 @else text-success-600 dark:text-success-400 @endif">
-                                        Estado: {{ $analyzeResult['is_infected'] ? 'INFECTADA' : 'LIMPIA' }}
-                                    </p>
+                                <div class="p-5 font-mono text-sm max-h-96 overflow-y-auto custom-scrollbar">
+                                    @if($result['message'])
+                                        <pre class="text-slate-200 dark:text-slate-300 whitespace-pre-wrap break-words leading-relaxed">{{ $result['message'] }}</pre>
+                                    @else
+                                        <p class="text-slate-400 dark:text-slate-500 italic">No se encontró ningún mensaje oculto en el archivo</p>
+                                    @endif
                                 </div>
                             </div>
                         </div>
 
-                        {{-- Métricas principales --}}
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-3 text-center">
-                                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Confianza</dt>
-                                <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ round($analyzeResult['confidence'], 1) }}%</dd>
-                            </div>
-                            <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-3 text-center">
-                                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Prob. LSB</dt>
-                                <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ round($analyzeResult['lsb_probability'], 1) }}%</dd>
-                            </div>
-                        </div>
+                        @if($result['message'])
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-center">
+                                    <div class="text-lg font-bold text-slate-900 dark:text-white mb-0.5">{{ $result['length'] }}</div>
+                                    <div class="text-xs text-slate-600 dark:text-slate-400">Caracteres</div>
+                                </div>
 
-                        {{-- Métricas detalladas --}}
-                        @if(isset($analyzeResult['metrics']) && count($analyzeResult['metrics']) > 0)
-                            <div class="space-y-2">
-                                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Métricas de Detección</h4>
-                                <div class="space-y-2 max-h-96 overflow-y-auto">
-                                    @foreach($analyzeResult['metrics'] as $metric)
-                                        <div class="rounded-lg border @if($metric['is_suspicious']) border-danger-200 dark:border-danger-800 bg-danger-50 dark:bg-danger-950 @else border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 @endif p-3">
-                                            <div class="flex items-start justify-between mb-1">
-                                                <span class="text-sm font-medium @if($metric['is_suspicious']) text-danger-700 dark:text-danger-300 @else text-gray-700 dark:text-gray-300 @endif">
-                                                    {{ $metric['name'] }}
-                                                </span>
-                                                @if(isset($metric['severity']))
-                                                    <span class="text-xs px-2 py-0.5 rounded-full
-                                                        @if($metric['severity'] === 'high') bg-danger-100 text-danger-700 dark:bg-danger-900 dark:text-danger-300
-                                                        @elseif($metric['severity'] === 'medium') bg-warning-100 text-warning-700 dark:bg-warning-900 dark:text-warning-300
-                                                        @else bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 @endif">
-                                                        {{ strtoupper($metric['severity']) }}
-                                                    </span>
-                                                @endif
-                                            </div>
-                                            <p class="text-xs text-gray-600 dark:text-gray-400">{{ $metric['explanation'] }}</p>
-                                            @if(isset($metric['value']))
-                                                <div class="mt-2 text-xs font-mono text-gray-500 dark:text-gray-500">
-                                                    Valor: {{ is_numeric($metric['value']) ? round($metric['value'], 2) : $metric['value'] }}
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @endforeach
+                                <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-center">
+                                    <div class="text-lg font-bold text-slate-900 dark:text-white mb-0.5">{{ str_word_count($result['message']) }}</div>
+                                    <div class="text-xs text-slate-600 dark:text-slate-400">Palabras</div>
+                                </div>
+
+                                <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-center">
+                                    <div class="text-lg font-bold text-slate-900 dark:text-white mb-0.5">{{ substr_count($result['message'], "\n") + 1 }}</div>
+                                    <div class="text-xs text-slate-600 dark:text-slate-400">Líneas</div>
                                 </div>
                             </div>
                         @endif
+                    </div>
+                @endif
+            </div>
+        </div>
 
-                        {{-- Resumen --}}
+        {{-- ============================================ --}}
+        {{-- SECCIÓN: ANALIZAR --}}
+        {{-- ============================================ --}}
+        <div class="space-y-4">
+            <div class="flex items-center gap-3 px-1">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                    <x-heroicon-o-magnifying-glass class="w-5 h-5 text-slate-600 dark:text-slate-400"/>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Análisis Forense</h2>
+                    <p class="text-xs text-slate-600 dark:text-slate-400">Detecta presencia de esteganografía con IA</p>
+                </div>
+            </div>
+
+            <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+                <div class="p-6">
+                    <form wire:submit="analyzeFile">
+                        {{ $this->analyzeForm }}
+                    </form>
+                </div>
+
+                @if($analyzeResult)
+                    <div class="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-6">
+                        {{-- Veredicto Principal --}}
+                        <div class="rounded-xl border-2 @if($analyzeResult['is_infected']) border-red-200 dark:border-red-900/50 bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 @else border-emerald-200 dark:border-emerald-900/50 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 @endif p-6 mb-6">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0">
+                                    <div class="w-14 h-14 rounded-xl @if($analyzeResult['is_infected']) bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 @else bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 @endif flex items-center justify-center">
+                                        @if($analyzeResult['is_infected'])
+                                            <x-heroicon-o-exclamation-triangle class="w-7 h-7 text-red-600 dark:text-red-400"/>
+                                        @else
+                                            <x-heroicon-o-shield-check class="w-7 h-7 text-emerald-600 dark:text-emerald-400"/>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="text-xl font-bold @if($analyzeResult['is_infected']) text-red-900 dark:text-red-100 @else text-emerald-900 dark:text-emerald-100 @endif mb-1">
+                                        {{ $analyzeResult['verdict'] }}
+                                    </h3>
+                                    <p class="text-sm @if($analyzeResult['is_infected']) text-red-700 dark:text-red-300 @else text-emerald-700 dark:text-emerald-300 @endif mb-4">
+                                        Estado del archivo: <span class="font-semibold">{{ $analyzeResult['is_infected'] ? 'INFECTADO' : 'LIMPIO' }}</span>
+                                    </p>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="rounded-lg bg-white/60 dark:bg-black/20 border @if($analyzeResult['is_infected']) border-red-200/50 dark:border-red-800/30 @else border-emerald-200/50 dark:border-emerald-800/30 @endif p-3">
+                                            <div class="text-xs font-medium @if($analyzeResult['is_infected']) text-red-700 dark:text-red-300 @else text-emerald-700 dark:text-emerald-300 @endif mb-1">Confianza</div>
+                                            <div class="text-2xl font-bold @if($analyzeResult['is_infected']) text-red-900 dark:text-red-100 @else text-emerald-900 dark:text-emerald-100 @endif">
+                                                {{ round($analyzeResult['confidence'], 1) }}%
+                                            </div>
+                                        </div>
+
+                                        <div class="rounded-lg bg-white/60 dark:bg-black/20 border @if($analyzeResult['is_infected']) border-red-200/50 dark:border-red-800/30 @else border-emerald-200/50 dark:border-emerald-800/30 @endif p-3">
+                                            <div class="text-xs font-medium @if($analyzeResult['is_infected']) text-red-700 dark:text-red-300 @else text-emerald-700 dark:text-emerald-300 @endif mb-1">Probabilidad LSB</div>
+                                            <div class="text-2xl font-bold @if($analyzeResult['is_infected']) text-red-900 dark:text-red-100 @else text-emerald-900 dark:text-emerald-100 @endif">
+                                                {{ round($analyzeResult['lsb_probability'], 1) }}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Método de Detección --}}
+                        @if(isset($analyzeResult['summary']['detection_method']))
+                            <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 mb-6">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <x-heroicon-o-cpu-chip class="w-4 h-4 text-slate-600 dark:text-slate-400"/>
+                                    <h4 class="text-sm font-semibold text-slate-900 dark:text-white">Método de Detección</h4>
+                                </div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400">
+                                    {{ $analyzeResult['summary']['detection_method'] }}
+                                </p>
+
+                                @if(isset($analyzeResult['summary']['message_found']) && $analyzeResult['summary']['message_found'])
+                                    <div class="mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50">
+                                        <div class="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Mensaje Extraído</div>
+                                        @if(isset($analyzeResult['summary']['message_preview']))
+                                            <p class="text-sm font-mono text-red-900 dark:text-red-100 break-words">
+                                                "{{ $analyzeResult['summary']['message_preview'] }}"
+                                            </p>
+                                        @endif
+                                        @if(isset($analyzeResult['summary']['message_length']))
+                                            <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+                                                Longitud: {{ $analyzeResult['summary']['message_length'] }} caracteres
+                                            </p>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
+                        {{-- Métricas de Detección --}}
+                        @if(isset($analyzeResult['metrics']) && count($analyzeResult['metrics']) > 0)
+                            <div class="mb-6">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                        <x-heroicon-o-beaker class="w-4 h-4 text-slate-600 dark:text-slate-400"/>
+                                        Métricas de Análisis
+                                    </h4>
+                                    <span class="text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                                        {{ count($analyzeResult['metrics']) }} métricas
+                                    </span>
+                                </div>
+
+                                @php
+                                    $criticalMetrics = collect($analyzeResult['metrics'])->filter(fn($m) => isset($m['category']) && in_array($m['category'], ['critical', 'confirmation']));
+                                    $secondaryMetrics = collect($analyzeResult['metrics'])->filter(fn($m) => isset($m['category']) && $m['category'] === 'secondary');
+                                    $supportMetrics = collect($analyzeResult['metrics'])->filter(fn($m) => !isset($m['category']) || $m['category'] === 'support');
+                                @endphp
+
+                                {{-- Métricas Críticas --}}
+                                @if($criticalMetrics->isNotEmpty())
+                                    <div class="mb-4">
+                                        <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Métricas Críticas</div>
+                                        <div class="space-y-2">
+                                            @foreach($criticalMetrics as $metric)
+                                                <details class="group rounded-lg border @if($metric['is_suspicious']) border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 @else border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 @endif overflow-hidden">
+                                                    <summary class="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition select-none">
+                                                        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                                                            @if($metric['is_suspicious'])
+                                                                <x-heroicon-m-exclamation-circle class="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0"/>
+                                                            @else
+                                                                <x-heroicon-m-check-circle class="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0"/>
+                                                            @endif
+                                                            <span class="text-sm font-medium @if($metric['is_suspicious']) text-red-900 dark:text-red-100 @else text-slate-900 dark:text-white @endif truncate">
+                                                                {{ $metric['name'] }}
+                                                            </span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                                                            @if(isset($metric['severity']))
+                                                                <span class="text-xs px-2 py-0.5 rounded font-medium
+                                                                    @if($metric['severity'] === 'high') bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300
+                                                                    @elseif($metric['severity'] === 'medium') bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+                                                                    @else bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 @endif">
+                                                                    {{ strtoupper($metric['severity']) }}
+                                                                </span>
+                                                            @endif
+                                                            <x-heroicon-m-chevron-down class="w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform group-open:rotate-180"/>
+                                                        </div>
+                                                    </summary>
+
+                                                    <div class="px-3.5 pb-3.5 pt-0 border-t @if($metric['is_suspicious']) border-red-200 dark:border-red-900/50 @else border-slate-200 dark:border-slate-800 @endif">
+                                                        <p class="text-xs @if($metric['is_suspicious']) text-red-700 dark:text-red-300 @else text-slate-600 dark:text-slate-400 @endif leading-relaxed mb-2">
+                                                            {{ $metric['explanation'] }}
+                                                        </p>
+                                                        @if(isset($metric['value']))
+                                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                                                <span class="text-xs font-medium text-slate-600 dark:text-slate-400">Valor:</span>
+                                                                <span class="text-xs font-mono font-bold text-slate-900 dark:text-white">
+                                                                    {{ is_numeric($metric['value']) ? round($metric['value'], 2) : $metric['value'] }}
+                                                                </span>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                </details>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+
+                                {{-- Métricas Secundarias --}}
+                                @if($secondaryMetrics->isNotEmpty())
+                                    <div class="mb-4">
+                                        <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Métricas Secundarias</div>
+                                        <div class="space-y-2">
+                                            @foreach($secondaryMetrics as $metric)
+                                                <details class="group rounded-lg border @if($metric['is_suspicious']) border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 @else border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 @endif overflow-hidden">
+                                                    <summary class="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition select-none">
+                                                        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                                                            @if($metric['is_suspicious'])
+                                                                <x-heroicon-m-exclamation-circle class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0"/>
+                                                            @else
+                                                                <x-heroicon-m-check-circle class="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0"/>
+                                                            @endif
+                                                            <span class="text-sm font-medium @if($metric['is_suspicious']) text-amber-900 dark:text-amber-100 @else text-slate-900 dark:text-white @endif truncate">
+                                                                {{ $metric['name'] }}
+                                                            </span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                                                            @if(isset($metric['severity']))
+                                                                <span class="text-xs px-2 py-0.5 rounded font-medium
+                                                                    @if($metric['severity'] === 'high') bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300
+                                                                    @elseif($metric['severity'] === 'medium') bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+                                                                    @else bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 @endif">
+                                                                    {{ strtoupper($metric['severity']) }}
+                                                                </span>
+                                                            @endif
+                                                            <x-heroicon-m-chevron-down class="w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform group-open:rotate-180"/>
+                                                        </div>
+                                                    </summary>
+
+                                                    <div class="px-3.5 pb-3.5 pt-0 border-t @if($metric['is_suspicious']) border-amber-200 dark:border-amber-900/50 @else border-slate-200 dark:border-slate-800 @endif">
+                                                        <p class="text-xs @if($metric['is_suspicious']) text-amber-700 dark:text-amber-300 @else text-slate-600 dark:text-slate-400 @endif leading-relaxed mb-2">
+                                                            {{ $metric['explanation'] }}
+                                                        </p>
+                                                        @if(isset($metric['value']))
+                                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                                                <span class="text-xs font-medium text-slate-600 dark:text-slate-400">Valor:</span>
+                                                                <span class="text-xs font-mono font-bold text-slate-900 dark:text-white">
+                                                                    {{ is_numeric($metric['value']) ? round($metric['value'], 2) : $metric['value'] }}
+                                                                </span>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                </details>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+
+                                {{-- Métricas de Soporte --}}
+                                @if($supportMetrics->isNotEmpty())
+                                    <div>
+                                        <details class="group">
+                                            <summary class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide cursor-pointer hover:text-slate-900 dark:hover:text-white transition flex items-center gap-2">
+                                                <x-heroicon-m-chevron-right class="w-3 h-3 transition-transform group-open:rotate-90"/>
+                                                Métricas de Soporte ({{ $supportMetrics->count() }})
+                                            </summary>
+                                            <div class="space-y-2 mt-2">
+                                                @foreach($supportMetrics as $metric)
+                                                    <details class="group/item rounded-lg border @if($metric['is_suspicious']) border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 @else border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 @endif overflow-hidden">
+                                                        <summary class="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition select-none">
+                                                            <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                                                                @if($metric['is_suspicious'])
+                                                                    <x-heroicon-m-information-circle class="w-4 h-4 text-slate-600 dark:text-slate-400 flex-shrink-0"/>
+                                                                @else
+                                                                    <x-heroicon-m-check-circle class="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0"/>
+                                                                @endif
+                                                                <span class="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                                                    {{ $metric['name'] }}
+                                                                </span>
+                                                            </div>
+                                                            <x-heroicon-m-chevron-down class="w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform group-open/item:rotate-180"/>
+                                                        </summary>
+
+                                                        <div class="px-3 pb-3 pt-0 border-t border-slate-200 dark:border-slate-800">
+                                                            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-2">
+                                                                {{ $metric['explanation'] }}
+                                                            </p>
+                                                            @if(isset($metric['value']))
+                                                                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                                                    <span class="text-xs font-medium text-slate-600 dark:text-slate-400">Valor:</span>
+                                                                    <span class="text-xs font-mono font-bold text-slate-900 dark:text-white">
+                                                                        {{ is_numeric($metric['value']) ? round($metric['value'], 2) : $metric['value'] }}
+                                                                    </span>
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    </details>
+                                                @endforeach
+                                            </div>
+                                        </details>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
+                        {{-- Resumen Técnico Completo --}}
                         @if(isset($analyzeResult['summary']))
-                            <div class="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
-                                <h4 class="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">📊 Resumen</h4>
-                                <dl class="space-y-1 text-xs text-blue-600 dark:text-blue-400">
+                            <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+                                <h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-slate-600 dark:text-slate-400"/>
+                                    Resumen Técnico del Análisis
+                                </h4>
+
+                                <div class="space-y-3">
                                     @foreach($analyzeResult['summary'] as $key => $value)
-                                        @if(!is_array($value))
-                                            <div class="flex justify-between">
-                                                <dt class="font-medium">{{ ucfirst(str_replace('_', ' ', $key)) }}:</dt>
-                                                <dd class="font-mono">{{ is_bool($value) ? ($value ? 'Sí' : 'No') : $value }}</dd>
+                                        @if(!is_array($value) && !in_array($key, ['message_preview', 'message_found', 'detection_method', 'message_length']))
+                                            <div class="flex justify-between items-start py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                                <dt class="text-xs font-medium text-slate-600 dark:text-slate-400 flex-shrink-0 mr-4">
+                                                    {{ ucwords(str_replace('_', ' ', $key)) }}
+                                                </dt>
+                                                <dd class="text-xs font-semibold text-slate-900 dark:text-white text-right">
+                                                    @if(is_bool($value))
+                                                        <span class="inline-flex items-center gap-1">
+                                                            @if($value)
+                                                                <x-heroicon-m-check-circle class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"/>
+                                                                <span class="text-emerald-700 dark:text-emerald-300">Sí</span>
+                                                            @else
+                                                                <x-heroicon-m-x-circle class="w-3.5 h-3.5 text-slate-400"/>
+                                                                <span class="text-slate-600 dark:text-slate-400">No</span>
+                                                            @endif
+                                                        </span>
+                                                    @else
+                                                        <span class="font-mono">{{ $value }}</span>
+                                                    @endif
+                                                </dd>
                                             </div>
                                         @endif
                                     @endforeach
-                                </dl>
+
+                                    {{-- Recomendación especial --}}
+                                    @if(isset($analyzeResult['summary']['recommendation']))
+                                        <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                            <div class="flex items-start gap-2">
+                                                <x-heroicon-o-light-bulb class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"/>
+                                                <div>
+                                                    <div class="text-xs font-semibold text-slate-900 dark:text-white mb-1">Recomendación</div>
+                                                    <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                        {{ $analyzeResult['summary']['recommendation'] }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    {{-- Nivel de confianza visual --}}
+                                    @if(isset($analyzeResult['summary']['confidence_level']))
+                                        <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                            <div class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Nivel de Confianza</div>
+                                            <div class="flex items-center gap-2">
+                                                @php
+                                                    $confidenceLevel = $analyzeResult['summary']['confidence_level'];
+                                                    $confidenceColor = match($confidenceLevel) {
+                                                        'Very High' => 'bg-emerald-500 dark:bg-emerald-600',
+                                                        'High' => 'bg-blue-500 dark:bg-blue-600',
+                                                        'Medium' => 'bg-amber-500 dark:bg-amber-600',
+                                                        default => 'bg-slate-500 dark:bg-slate-600'
+                                                    };
+                                                @endphp
+                                                <div class="flex-1 bg-slate-200 dark:bg-slate-800 rounded-full h-2">
+                                                    <div class="{{ $confidenceColor }} h-full rounded-full transition-all duration-500"
+                                                         style="width: {{ $analyzeResult['confidence'] }}%">
+                                                    </div>
+                                                </div>
+                                                <span class="text-xs font-bold text-slate-900 dark:text-white">
+                                                    {{ $confidenceLevel }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
                             </div>
                         @endif
                     </div>
-                </x-filament::section>
-            @endif
+                @endif
+            </div>
         </div>
+
     </div>
 
+    {{-- Script para copiar al portapapeles --}}
     @script
     <script>
         $wire.on('copy-to-clipboard', (data) => {
-            navigator.clipboard.writeText(data.text);
-            new FilamentNotification()
-                .title('Copiado al portapapeles')
-                .success()
-                .send();
+            navigator.clipboard.writeText(data.text).then(() => {
+                new FilamentNotification()
+                    .title('Copiado al portapapeles')
+                    .success()
+                    .send();
+            });
         });
     </script>
     @endscript
-</x-filament::page>
+
+    {{-- Estilos personalizados --}}
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+        @media (prefers-color-scheme: dark) {
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+                background: rgba(71, 85, 105, 0.5);
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: rgba(71, 85, 105, 0.7);
+            }
+        }
+
+        details > summary {
+            list-style: none;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+    </style>
+</x-filament-panels::page>

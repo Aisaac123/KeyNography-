@@ -1,14 +1,16 @@
 <?php
 
 namespace App\Filament\Pages;
+
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Form;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\WithFileUploads;
@@ -21,10 +23,15 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-lock-closed';
     protected string $view = 'dashboard';
-    protected static ?string $navigationLabel = 'Esteganografía';
-    protected static ?string $title = 'Sistema de Esteganografía';
+    protected static ?string $navigationLabel = 'Infección y Extracción';
+    protected static ?string $title = 'Sistema de Esteganografía: Infección y Extracción';
 
-    // API Base URL - CAMBIA ESTO A TU URL
+    public function getMaxContentWidth(): Width
+    {
+        return Width::MaxContent;
+    }
+
+    // API Base URL
     private string $apiBaseUrl = 'http://localhost:7000';
 
     // Estados de los formularios
@@ -47,6 +54,98 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // ========================================
+    // MÉTODO MEJORADO: Guardar archivo directamente en storage y obtener ruta
+    // ========================================
+    private function saveAndGetFilePath($uploadedFile, string $fileType): string
+    {
+        // Generar nombre único
+        $extension = $fileType === 'audio' ? 'wav' : 'png';
+        $fileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
+
+        // Disk local
+        $disk = Storage::disk('local');
+
+        // Crear directorio temp si no existe
+        if (!$disk->exists('temp')) {
+            $disk->makeDirectory('temp');
+        }
+
+        // Si es un string (nombre de archivo temporal de Livewire)
+        if (is_string($uploadedFile)) {
+            // Buscar en todas las ubicaciones posibles
+            $possiblePaths = [
+                storage_path('app/livewire-tmp/' . $uploadedFile),
+                storage_path('app/private/' . $uploadedFile),
+                storage_path('app/uploads/' . $uploadedFile),
+                storage_path('app/' . $uploadedFile),
+            ];
+
+            // También buscar sin el nombre, solo en los directorios
+            $baseName = basename($uploadedFile);
+            $possiblePaths[] = storage_path('app/livewire-tmp/' . $baseName);
+            $possiblePaths[] = storage_path('app/private/' . $baseName);
+
+            foreach ($possiblePaths as $path) {
+                if (file_exists($path)) {
+                    // Copiar a nuestra ubicación temp
+                    $content = file_get_contents($path);
+                    $disk->put('temp/' . $fileName, $content);
+                    return $disk->path('temp/' . $fileName);
+                }
+            }
+
+            // Búsqueda recursiva en livewire-tmp
+            $livewireTmpPath = storage_path('app/livewire-tmp');
+            if (is_dir($livewireTmpPath)) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($livewireTmpPath, \RecursiveDirectoryIterator::SKIP_DOTS)
+                );
+
+                foreach ($iterator as $file) {
+                    if ($file->isFile()) {
+                        $fileName = $file->getFilename();
+                        // Buscar por nombre completo o por hash
+                        if ($fileName === $uploadedFile || $fileName === basename($uploadedFile) ||
+                            strpos($fileName, basename($uploadedFile)) !== false) {
+                            $content = file_get_contents($file->getRealPath());
+                            $tempFileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
+                            $disk->put('temp/' . $tempFileName, $content);
+                            return $disk->path('temp/' . $tempFileName);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Si es un objeto UploadedFile
+        if (is_object($uploadedFile) && method_exists($uploadedFile, 'getRealPath')) {
+            $realPath = $uploadedFile->getRealPath();
+            if (file_exists($realPath)) {
+                $content = file_get_contents($realPath);
+                $disk->put('temp/' . $fileName, $content);
+                return $disk->path('temp/' . $fileName);
+            }
+        }
+
+        // Si es un array (a veces Filament lo envía así)
+        if (is_array($uploadedFile) && !empty($uploadedFile)) {
+            return $this->saveAndGetFilePath($uploadedFile[0], $fileType);
+        }
+
+        throw new \Exception('No se pudo procesar el archivo. Debug: ' . (is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
+    }
+
+    // ========================================
+    // MÉTODO: Limpiar archivo temporal
+    // ========================================
+    private function cleanupTempFile(string $path): void
+    {
+        if (file_exists($path) && strpos($path, 'temp_') !== false) {
+            @unlink($path);
+        }
+    }
+
+    // ========================================
     // FORMULARIO DE INFECTAR
     // ========================================
     public function embedForm(Schema $form): Schema
@@ -64,21 +163,23 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                             ])
                             ->required()
                             ->live()
-                            ->default('image'),
+                            ->default('image')
+                            ->afterStateUpdated(function ($state, Set $set) {
+                                // Limpiar el archivo cuando cambia el tipo
+                                $set('file', null);
+                            }),
 
                         Forms\Components\FileUpload::make('file')
-                            ->label(fn (Get $get) => $get('file_type') === 'audio' ? 'Subir Audio' : 'Subir Imagen')
-                            ->acceptedFileTypes(fn (Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav']
+                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV' : 'Subir Imagen')
+                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
+                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
                                 : ['image/png', 'image/jpeg', 'image/jpg'])
-                            ->maxSize(10240)
+                            ->maxSize(10240) // 10MB
                             ->required()
-                            ->disk('local')
-                            ->directory('temp')
-                            ->visibility('private')
-                            ->helperText(fn (Get $get) => $get('file_type') === 'audio'
-                                ? 'Solo archivos WAV. Máximo 10MB'
-                                : 'Formatos: PNG, JPG, JPEG. Máximo 10MB'),
+                            ->helperText(fn(Get $get) => $get('file_type') === 'audio'
+                                ? '⚠️ Solo archivos WAV. Máximo 10MB'
+                                : '⚠️ Formatos: PNG, JPG, JPEG. Máximo 10MB')
+                            ->live(),
 
                         Forms\Components\Textarea::make('message')
                             ->label('Mensaje Secreto')
@@ -122,18 +223,22 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                             ])
                             ->required()
                             ->live()
-                            ->default('image'),
+                            ->default('image')
+                            ->afterStateUpdated(function ($state, Set $set) {
+                                $set('file', null);
+                            }),
 
                         Forms\Components\FileUpload::make('file')
-                            ->label(fn (Get $get) => $get('file_type') === 'audio' ? 'Subir Audio Infectado' : 'Subir Imagen Infectada')
-                            ->acceptedFileTypes(fn (Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav']
+                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV Infectado' : 'Subir Imagen Infectada')
+                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
+                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
                                 : ['image/png', 'image/jpeg', 'image/jpg'])
                             ->maxSize(10240)
                             ->required()
                             ->disk('local')
-                            ->directory('temp')
-                            ->visibility('private'),
+                            ->directory('uploads')
+                            ->visibility('private')
+                            ->live(),
 
                         Actions::make([
                             Action::make('extract')
@@ -166,18 +271,22 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                             ])
                             ->required()
                             ->live()
-                            ->default('image'),
+                            ->default('image')
+                            ->afterStateUpdated(function ($state, Set $set) {
+                                $set('file', null);
+                            }),
 
                         Forms\Components\FileUpload::make('file')
-                            ->label(fn (Get $get) => $get('file_type') === 'audio' ? 'Subir Audio para Analizar' : 'Subir Imagen para Analizar')
-                            ->acceptedFileTypes(fn (Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav']
+                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV para Analizar' : 'Subir Imagen para Analizar')
+                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
+                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
                                 : ['image/png', 'image/jpeg', 'image/jpg'])
                             ->maxSize(10240)
                             ->required()
                             ->disk('local')
-                            ->directory('temp')
-                            ->visibility('private'),
+                            ->directory('uploads')
+                            ->visibility('private')
+                            ->live(),
 
                         Actions::make([
                             Action::make('analyze')
@@ -200,32 +309,36 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
         $data = $this->embedForm->getState();
 
         try {
-            // Validar que existe el archivo
             if (!isset($data['file']) || empty($data['file'])) {
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            // Obtener ruta del archivo temporal
-            $filePath = Storage::disk('local')->path($data['file']);
+            // Guardar archivo y obtener ruta real
+            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
 
             if (!file_exists($filePath)) {
-                throw new \Exception('El archivo no existe');
+                throw new \Exception('Error al procesar el archivo');
             }
 
             $endpoint = $data['file_type'] === 'audio'
                 ? '/audio/stego/embed'
                 : '/image/stego/embed';
 
-            // Realizar petición HTTP
+            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
+
+            // Realizar petición a la API
             $response = Http::timeout(60)
                 ->attach(
-                    'audio', // nombre del campo en FastAPI
+                    $fieldName,
                     file_get_contents($filePath),
                     basename($filePath)
                 )
                 ->post($this->apiBaseUrl . $endpoint, [
                     'message' => $data['message']
                 ]);
+
+            // Limpiar archivo temporal
+            $this->cleanupTempFile($filePath);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -241,19 +354,18 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     'file' => Storage::disk('public')->url($fileName),
                     'payload_size' => $result['payload_size'],
                     'capacity_used' => $result['capacity_used'],
-                    'message' => $result['message']
+                    'message' => $data['message'],
+                    'file_type' => $data['file_type']
                 ]);
-
-                // Limpiar archivo temporal
-                Storage::disk('local')->delete($data['file']);
 
                 Notification::make()
                     ->success()
                     ->title('¡Infectado exitosamente!')
-                    ->body("Mensaje oculto en {$result['file_type']}. Capacidad usada: {$result['capacity_used']}%")
+                    ->body("Capacidad usada: {$result['capacity_used']}%")
                     ->send();
 
-                $this->embedForm->fill();
+                // Limpiar formulario
+                $this->embedForm->fill(['file_type' => 'image', 'file' => null, 'message' => null]);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
@@ -279,23 +391,29 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            $filePath = Storage::disk('local')->path($data['file']);
+            // Guardar archivo y obtener ruta real
+            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
 
             if (!file_exists($filePath)) {
-                throw new \Exception('El archivo no existe');
+                throw new \Exception('Error al procesar el archivo');
             }
 
             $endpoint = $data['file_type'] === 'audio'
                 ? '/audio/stego/extract'
                 : '/image/stego/extract';
 
+            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
+
             $response = Http::timeout(60)
                 ->attach(
-                    'audio',
+                    $fieldName,
                     file_get_contents($filePath),
                     basename($filePath)
                 )
                 ->post($this->apiBaseUrl . $endpoint);
+
+            // Limpiar archivo temporal
+            $this->cleanupTempFile($filePath);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -305,16 +423,22 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     'length' => $result['message_length'] ?? 0
                 ]);
 
-                // Limpiar archivo temporal
-                Storage::disk('local')->delete($data['file']);
+                if ($result['message_length'] > 0) {
+                    Notification::make()
+                        ->success()
+                        ->title('¡Mensaje extraído!')
+                        ->body("Se encontró un mensaje de {$result['message_length']} caracteres")
+                        ->send();
+                } else {
+                    Notification::make()
+                        ->warning()
+                        ->title('Sin mensaje')
+                        ->body('No se encontró ningún mensaje oculto')
+                        ->send();
+                }
 
-                Notification::make()
-                    ->success()
-                    ->title('¡Mensaje extraído!')
-                    ->body("Se encontró un mensaje de {$result['message_length']} caracteres")
-                    ->send();
-
-                $this->extractForm->fill();
+                // Limpiar formulario
+                $this->extractForm->fill(['file_type' => 'image', 'file' => null]);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
@@ -340,39 +464,43 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            $filePath = Storage::disk('local')->path($data['file']);
+            // Guardar archivo y obtener ruta real
+            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
 
             if (!file_exists($filePath)) {
-                throw new \Exception('El archivo no existe');
+                throw new \Exception('Error al procesar el archivo');
             }
 
             $endpoint = $data['file_type'] === 'audio'
                 ? '/audio/steganalysis/analyze'
                 : '/image/steganalysis/analyze';
 
+            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
+
             $response = Http::timeout(60)
                 ->attach(
-                    'audio',
+                    $fieldName,
                     file_get_contents($filePath),
                     basename($filePath)
                 )
                 ->post($this->apiBaseUrl . $endpoint);
 
+            // Limpiar archivo temporal
+            $this->cleanupTempFile($filePath);
+
             if ($response->successful()) {
                 $this->analyzeResult = $response->json();
-
-                // Limpiar archivo temporal
-                Storage::disk('local')->delete($data['file']);
 
                 $color = $this->analyzeResult['is_infected'] ? 'danger' : 'success';
 
                 Notification::make()
                     ->color($color)
                     ->title($this->analyzeResult['verdict'])
-                    ->body("Confianza: {$this->analyzeResult['confidence']}% | LSB: {$this->analyzeResult['lsb_probability']}%")
+                    ->body("Confianza: {$this->analyzeResult['confidence']}%")
                     ->send();
 
-                $this->analyzeForm->fill();
+                // Limpiar formulario
+                $this->analyzeForm->fill(['file_type' => 'image', 'file' => null]);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
