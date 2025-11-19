@@ -32,7 +32,11 @@ class AppPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Green,
             ])
+            ->brandLogoHeight('68px')
+            ->favicon(asset('assets/logo.png'))
+            ->brandLogo(asset('assets/logo.png'))
             ->topNavigation()
+            ->brandLogo(fn () => view('filament.brand-logo'))
             ->viteTheme('resources/css/filament/app/theme.css')
             ->font('Quicksand')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
