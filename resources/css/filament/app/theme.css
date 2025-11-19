@@ -2,5 +2,6 @@
 @import '../../../../resources/css/app.css';
 @import 'tailwindcss';
 
+
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';

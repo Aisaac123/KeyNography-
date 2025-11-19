@@ -22,6 +22,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     use WithFileUploads;
 
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-lock-closed';
+    protected static string|null|\BackedEnum $activeNavigationIcon = 'heroicon-s-lock-closed';
     protected string $view = 'dashboard';
     protected static ?string $navigationLabel = 'Infección y Extracción';
     protected static ?string $title = '';
@@ -37,20 +38,54 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     // Estados de los formularios
     public ?array $embedData = [];
     public ?array $extractData = [];
-    public ?array $analyzeData = [];
 
     // Resultados
     public ?string $embedResult = null;
     public ?string $extractResult = null;
-    public ?array $analyzeResult = null;
+
 
     protected function getForms(): array
     {
         return [
             'embedForm',
             'extractForm',
-            'analyzeForm',
         ];
+    }
+
+    // ========================================
+    // NUEVO: Detectar tipo de archivo por extensión
+    // ========================================
+    private function detectFileType($uploadedFile): string
+    {
+        // Si es un array, obtener el primer elemento
+        if (is_array($uploadedFile) && !empty($uploadedFile)) {
+            $firstFile = reset($uploadedFile);
+
+            if (is_object($firstFile) && method_exists($firstFile, 'getClientOriginalName')) {
+                $fileName = $firstFile->getClientOriginalName();
+            } elseif (is_object($firstFile) && method_exists($firstFile, 'getFilename')) {
+                $fileName = $firstFile->getFilename();
+            } else {
+                $fileName = '';
+            }
+        } elseif (is_string($uploadedFile)) {
+            $fileName = $uploadedFile;
+        } elseif (is_object($uploadedFile) && method_exists($uploadedFile, 'getClientOriginalName')) {
+            $fileName = $uploadedFile->getClientOriginalName();
+        } else {
+            $fileName = '';
+        }
+
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        // Detectar por extensión
+        if (in_array($extension, ['wav'])) {
+            return 'audio';
+        } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'bmp'])) {
+            return 'image';
+        }
+
+        return 'image'; // Por defecto
     }
 
     // ========================================
@@ -70,11 +105,43 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
             $disk->makeDirectory('temp');
         }
 
+        // ✅ NUEVO: Si es un array asociativo con UUID (Livewire/Filament)
+        if (is_array($uploadedFile) && !empty($uploadedFile)) {
+            // Obtener el primer valor del array (el objeto TemporaryUploadedFile)
+            $firstFile = reset($uploadedFile);
+
+            // Si es un objeto TemporaryUploadedFile de Livewire
+            if (is_object($firstFile) && method_exists($firstFile, 'getRealPath')) {
+                $realPath = $firstFile->getRealPath();
+                if (file_exists($realPath)) {
+                    $content = file_get_contents($realPath);
+                    $disk->put('temp/' . $fileName, $content);
+                    return $disk->path('temp/' . $fileName);
+                }
+
+                // Intentar con path() si getRealPath() falla
+                if (method_exists($firstFile, 'path')) {
+                    $path = $firstFile->path();
+                    if (file_exists($path)) {
+                        $content = file_get_contents($path);
+                        $disk->put('temp/' . $fileName, $content);
+                        return $disk->path('temp/' . $fileName);
+                    }
+                }
+            }
+
+            // Si no es objeto, intentar recursivamente con el primer elemento
+            if (!is_object($firstFile)) {
+                return $this->saveAndGetFilePath($firstFile, $fileType);
+            }
+        }
+
         // Si es un string (nombre de archivo temporal de Livewire)
         if (is_string($uploadedFile)) {
             // Buscar en todas las ubicaciones posibles
             $possiblePaths = [
                 storage_path('app/livewire-tmp/' . $uploadedFile),
+                storage_path('app/private/livewire-tmp/' . $uploadedFile),
                 storage_path('app/private/' . $uploadedFile),
                 storage_path('app/uploads/' . $uploadedFile),
                 storage_path('app/' . $uploadedFile),
@@ -83,6 +150,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
             // También buscar sin el nombre, solo en los directorios
             $baseName = basename($uploadedFile);
             $possiblePaths[] = storage_path('app/livewire-tmp/' . $baseName);
+            $possiblePaths[] = storage_path('app/private/livewire-tmp/' . $baseName);
             $possiblePaths[] = storage_path('app/private/' . $baseName);
 
             foreach ($possiblePaths as $path) {
@@ -103,10 +171,31 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
                 foreach ($iterator as $file) {
                     if ($file->isFile()) {
-                        $fileName = $file->getFilename();
+                        $fileNameFound = $file->getFilename();
                         // Buscar por nombre completo o por hash
-                        if ($fileName === $uploadedFile || $fileName === basename($uploadedFile) ||
-                            strpos($fileName, basename($uploadedFile)) !== false) {
+                        if ($fileNameFound === $uploadedFile || $fileNameFound === basename($uploadedFile) ||
+                            strpos($fileNameFound, basename($uploadedFile)) !== false) {
+                            $content = file_get_contents($file->getRealPath());
+                            $tempFileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
+                            $disk->put('temp/' . $tempFileName, $content);
+                            return $disk->path('temp/' . $tempFileName);
+                        }
+                    }
+                }
+            }
+
+            // Búsqueda recursiva en private/livewire-tmp
+            $privateLivewireTmpPath = storage_path('app/private/livewire-tmp');
+            if (is_dir($privateLivewireTmpPath)) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($privateLivewireTmpPath, \RecursiveDirectoryIterator::SKIP_DOTS)
+                );
+
+                foreach ($iterator as $file) {
+                    if ($file->isFile()) {
+                        $fileNameFound = $file->getFilename();
+                        if ($fileNameFound === $uploadedFile || $fileNameFound === basename($uploadedFile) ||
+                            strpos($fileNameFound, basename($uploadedFile)) !== false) {
                             $content = file_get_contents($file->getRealPath());
                             $tempFileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
                             $disk->put('temp/' . $tempFileName, $content);
@@ -117,7 +206,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
             }
         }
 
-        // Si es un objeto UploadedFile
+        // Si es un objeto UploadedFile directo
         if (is_object($uploadedFile) && method_exists($uploadedFile, 'getRealPath')) {
             $realPath = $uploadedFile->getRealPath();
             if (file_exists($realPath)) {
@@ -125,11 +214,6 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 $disk->put('temp/' . $fileName, $content);
                 return $disk->path('temp/' . $fileName);
             }
-        }
-
-        // Si es un array (a veces Filament lo envía así)
-        if (is_array($uploadedFile) && !empty($uploadedFile)) {
-            return $this->saveAndGetFilePath($uploadedFile[0], $fileType);
         }
 
         throw new \Exception('No se pudo procesar el archivo. Debug: ' . (is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
@@ -146,7 +230,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // ========================================
-    // FORMULARIO DE INFECTAR
+    // FORMULARIO DE INFECTAR - SIN SELECT ✅
     // ========================================
     public function embedForm(Schema $form): Schema
     {
@@ -155,30 +239,17 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 Section::make('Infectar Archivo con Mensaje Oculto')
                     ->description('Oculta un mensaje secreto dentro de una imagen o audio')
                     ->schema([
-                        Forms\Components\Select::make('file_type')
-                            ->label('Tipo de Archivo')
-                            ->options([
-                                'image' => '🖼️ Imagen',
-                                'audio' => '🎵 Audio',
-                            ])
-                            ->required()
-                            ->live()
-                            ->default('image')
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                // Limpiar el archivo cuando cambia el tipo
-                                $set('file', null);
-                            }),
-
                         Forms\Components\FileUpload::make('file')
-                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV' : 'Subir Imagen')
-                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
-                                : ['image/png', 'image/jpeg', 'image/jpg'])
+                            ->label('Subir Archivo (Imagen o Audio)')
+                            ->acceptedFileTypes([
+                                'image/png', 'image/jpeg', 'image/jpg',
+                                'audio/wav', 'audio/x-wav', 'audio/wave',
+                                '.png', '.jpg', '.jpeg', '.wav'
+                            ])
                             ->maxSize(10240) // 10MB
                             ->required()
-                            ->helperText(fn(Get $get) => $get('file_type') === 'audio'
-                                ? '⚠️ Solo archivos WAV. Máximo 10MB'
-                                : '⚠️ Formatos: PNG, JPG, JPEG. Máximo 10MB')
+                            ->storeFiles(false)
+                            ->helperText('⚠️ Formatos: PNG, JPG, JPEG, WAV. Máximo 10MB')
                             ->live(),
 
                         Forms\Components\Textarea::make('message')
@@ -206,7 +277,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // ========================================
-    // FORMULARIO DE EXTRAER
+    // FORMULARIO DE EXTRAER - SIN SELECT ✅
     // ========================================
     public function extractForm(Schema $form): Schema
     {
@@ -215,29 +286,17 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 Section::make('Extraer Mensaje Oculto')
                     ->description('Extrae el mensaje secreto de un archivo infectado')
                     ->schema([
-                        Forms\Components\Select::make('file_type')
-                            ->label('Tipo de Archivo')
-                            ->options([
-                                'image' => '🖼️ Imagen',
-                                'audio' => '🎵 Audio',
-                            ])
-                            ->required()
-                            ->live()
-                            ->default('image')
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                $set('file', null);
-                            }),
-
                         Forms\Components\FileUpload::make('file')
-                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV Infectado' : 'Subir Imagen Infectada')
-                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
-                                : ['image/png', 'image/jpeg', 'image/jpg'])
-                            ->maxSize(10240)
+                            ->label('Subir Archivo Infectado (Imagen o Audio)')
+                            ->acceptedFileTypes([
+                                'image/png', 'image/jpeg', 'image/jpg',
+                                'audio/wav', 'audio/x-wav', 'audio/wave',
+                                '.png', '.jpg', '.jpeg', '.wav'
+                            ])
+                            ->maxSize(10240) // 10MB
                             ->required()
-                            ->disk('local')
-                            ->directory('uploads')
-                            ->visibility('private')
+                            ->storeFiles(false)
+                            ->helperText('⚠️ Formatos: PNG, JPG, JPEG, WAV. Máximo 10MB')
                             ->live(),
 
                         Actions::make([
@@ -254,121 +313,91 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // ========================================
-    // FORMULARIO DE ANALIZAR
-    // ========================================
-    public function analyzeForm(Schema $form): Schema
-    {
-        return $form
-            ->schema([
-                Section::make('Análisis de Esteganografía')
-                    ->description('Detecta si un archivo contiene mensajes ocultos')
-                    ->schema([
-                        Forms\Components\Select::make('file_type')
-                            ->label('Tipo de Archivo')
-                            ->options([
-                                'image' => '🖼️ Imagen',
-                                'audio' => '🎵 Audio',
-                            ])
-                            ->required()
-                            ->live()
-                            ->default('image')
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                $set('file', null);
-                            }),
-
-                        Forms\Components\FileUpload::make('file')
-                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV para Analizar' : 'Subir Imagen para Analizar')
-                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
-                                : ['image/png', 'image/jpeg', 'image/jpg'])
-                            ->maxSize(10240)
-                            ->required()
-                            ->disk('local')
-                            ->directory('uploads')
-                            ->visibility('private')
-                            ->live(),
-
-                        Actions::make([
-                            Action::make('analyze')
-                                ->label('🔍 Analizar Archivo')
-                                ->color('warning')
-                                ->size('lg')
-                                ->action('analyzeFile')
-                        ])->columnSpanFull()
-                    ])
-                    ->columns(1)
-            ])
-            ->statePath('analyzeData');
-    }
-
-    // ========================================
-    // ACCIÓN: INFECTAR MENSAJE
+    // ACCIÓN: INFECTAR MENSAJE - AUTO-DETECT ✅
     // ========================================
     public function embedMessage(): void
     {
-        $data = $this->embedForm->getState();
-
         try {
-            if (!isset($data['file']) || empty($data['file'])) {
+            $fileData = $this->embedData['file'] ?? null;
+
+            if (empty($fileData)) {
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            // Guardar archivo y obtener ruta real
-            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
+            $message = $this->embedData['message'] ?? '';
+
+            if (empty($message)) {
+                throw new \Exception('Debe ingresar un mensaje');
+            }
+
+            // ✅ Detectar tipo automáticamente
+            $fileType = $this->detectFileType($fileData);
+
+            $filePath = $this->saveAndGetFilePath($fileData, $fileType);
 
             if (!file_exists($filePath)) {
                 throw new \Exception('Error al procesar el archivo');
             }
 
-            $endpoint = $data['file_type'] === 'audio'
+            $endpoint = $fileType === 'audio'
                 ? '/audio/stego/embed'
                 : '/image/stego/embed';
 
-            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
+            $fieldName = $fileType === 'audio' ? 'audio' : 'image';
 
-            // Realizar petición a la API
+            $url = $this->apiBaseUrl . $endpoint . '?message=' . urlencode($message);
+
             $response = Http::timeout(60)
                 ->attach(
                     $fieldName,
                     file_get_contents($filePath),
                     basename($filePath)
                 )
-                ->post($this->apiBaseUrl . $endpoint, [
-                    'message' => $data['message']
+                ->post($url, [
+                    'message' => $message
                 ]);
 
-            // Limpiar archivo temporal
             $this->cleanupTempFile($filePath);
 
             if ($response->successful()) {
                 $result = $response->json();
 
-                // Guardar archivo infectado
                 $base64Data = $result['file_base64'];
-                $extension = $data['file_type'] === 'audio' ? 'wav' : 'png';
+                $extension = $fileType === 'audio' ? 'wav' : 'png';
                 $fileName = 'infected_' . time() . '.' . $extension;
 
-                Storage::disk('public')->put($fileName, base64_decode($base64Data));
+                $decodedFile = base64_decode($base64Data);
+
+                if ($decodedFile === false) {
+                    throw new \Exception('Error al decodificar el archivo base64');
+                }
+
+                Storage::disk('public')->put($fileName, $decodedFile);
+
+                $fileUrl = Storage::disk('public')->url($fileName);
 
                 $this->embedResult = json_encode([
-                    'file' => Storage::disk('public')->url($fileName),
+                    'file' => $fileUrl,
+                    'file_name' => $fileName,
                     'payload_size' => $result['payload_size'],
                     'capacity_used' => $result['capacity_used'],
-                    'message' => $data['message'],
-                    'file_type' => $data['file_type']
+                    'message' => $message,
+                    'file_type' => $fileType
                 ]);
 
+                $fileTypeLabel = $fileType === 'audio' ? '🎵 Audio' : '🖼️ Imagen';
                 Notification::make()
                     ->success()
-                    ->title('¡Infectado exitosamente!')
+                    ->title("¡{$fileTypeLabel} infectado exitosamente!")
                     ->body("Capacidad usada: {$result['capacity_used']}%")
                     ->send();
 
-                // Limpiar formulario
-                $this->embedForm->fill(['file_type' => 'image', 'file' => null, 'message' => null]);
+                // ✅ Limpiar formulario
+                $this->embedData = ['file' => null, 'message' => null];
+                $this->embedForm->fill($this->embedData);
             } else {
                 $error = $response->json();
-                throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
+                throw new \Exception($error['detail'][0]['msg'] ?? 'Error al comunicarse con la API');
             }
         } catch (\Exception $e) {
             Notification::make()
@@ -380,29 +409,31 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // ========================================
-    // ACCIÓN: EXTRAER MENSAJE
+    // ACCIÓN: EXTRAER MENSAJE - AUTO-DETECT ✅
     // ========================================
     public function extractMessage(): void
     {
-        $data = $this->extractForm->getState();
-
         try {
-            if (empty($data['file'])) {
+            $fileData = $this->extractData['file'] ?? null;
+
+            if (empty($fileData)) {
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            // Guardar archivo y obtener ruta real
-            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
+            // ✅ Detectar tipo automáticamente
+            $fileType = $this->detectFileType($fileData);
+
+            $filePath = $this->saveAndGetFilePath($fileData, $fileType);
 
             if (!file_exists($filePath)) {
                 throw new \Exception('Error al procesar el archivo');
             }
 
-            $endpoint = $data['file_type'] === 'audio'
+            $endpoint = $fileType === 'audio'
                 ? '/audio/stego/extract'
                 : '/image/stego/extract';
 
-            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
+            $fieldName = $fileType === 'audio' ? 'audio' : 'image';
 
             $response = Http::timeout(60)
                 ->attach(
@@ -412,7 +443,6 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 )
                 ->post($this->apiBaseUrl . $endpoint);
 
-            // Limpiar archivo temporal
             $this->cleanupTempFile($filePath);
 
             if ($response->successful()) {
@@ -420,7 +450,8 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
                 $this->extractResult = json_encode([
                     'message' => $result['message'] ?? 'No se encontró mensaje',
-                    'length' => $result['message_length'] ?? 0
+                    'length' => $result['message_length'] ?? 0,
+                    'file_type' => $fileType
                 ]);
 
                 if ($result['message_length'] > 0) {
@@ -437,8 +468,9 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                         ->send();
                 }
 
-                // Limpiar formulario
-                $this->extractForm->fill(['file_type' => 'image', 'file' => null]);
+                // ✅ Limpiar formulario
+                $this->extractData = ['file' => null];
+                $this->extractForm->fill($this->extractData);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
@@ -447,68 +479,6 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
             Notification::make()
                 ->danger()
                 ->title('Error al extraer')
-                ->body($e->getMessage())
-                ->send();
-        }
-    }
-
-    // ========================================
-    // ACCIÓN: ANALIZAR ARCHIVO
-    // ========================================
-    public function analyzeFile(): void
-    {
-        $data = $this->analyzeForm->getState();
-
-        try {
-            if (empty($data['file'])) {
-                throw new \Exception('Debe seleccionar un archivo');
-            }
-
-            // Guardar archivo y obtener ruta real
-            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
-
-            if (!file_exists($filePath)) {
-                throw new \Exception('Error al procesar el archivo');
-            }
-
-            $endpoint = $data['file_type'] === 'audio'
-                ? '/audio/steganalysis/analyze'
-                : '/image/steganalysis/analyze';
-
-            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
-
-            $response = Http::timeout(60)
-                ->attach(
-                    $fieldName,
-                    file_get_contents($filePath),
-                    basename($filePath)
-                )
-                ->post($this->apiBaseUrl . $endpoint);
-
-            // Limpiar archivo temporal
-            $this->cleanupTempFile($filePath);
-
-            if ($response->successful()) {
-                $this->analyzeResult = $response->json();
-
-                $color = $this->analyzeResult['is_infected'] ? 'danger' : 'success';
-
-                Notification::make()
-                    ->color($color)
-                    ->title($this->analyzeResult['verdict'])
-                    ->body("Confianza: {$this->analyzeResult['confidence']}%")
-                    ->send();
-
-                // Limpiar formulario
-                $this->analyzeForm->fill(['file_type' => 'image', 'file' => null]);
-            } else {
-                $error = $response->json();
-                throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
-            }
-        } catch (\Exception $e) {
-            Notification::make()
-                ->danger()
-                ->title('Error al analizar')
                 ->body($e->getMessage())
                 ->send();
         }
