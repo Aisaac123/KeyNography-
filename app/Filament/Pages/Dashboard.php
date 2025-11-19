@@ -24,7 +24,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-lock-closed';
     protected string $view = 'dashboard';
     protected static ?string $navigationLabel = 'Infección y Extracción';
-    protected static ?string $title = 'Sistema de Esteganografía: Infección y Extracción';
+    protected static ?string $title = '';
 
     public function getMaxContentWidth(): Width
     {

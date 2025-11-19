@@ -32,6 +32,7 @@ class AppPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Green,
             ])
+            ->topNavigation()
             ->viteTheme('resources/css/filament/app/theme.css')
             ->font('Quicksand')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

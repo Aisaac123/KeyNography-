@@ -34,12 +34,10 @@
                 </div>
             </div>
 
-            <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
-                <div class="p-6">
+            <div>
                     <form wire:submit="embedMessage">
                         {{ $this->embedForm }}
                     </form>
-                </div>
 
                 @if($embedResult)
                     @php
@@ -130,12 +128,10 @@
                 </div>
             </div>
 
-            <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
-                <div class="p-6">
+            <div>
                     <form wire:submit="extractMessage">
                         {{ $this->extractForm }}
                     </form>
-                </div>
 
                 @if($extractResult)
                     @php
@@ -222,12 +218,10 @@
                 </div>
             </div>
 
-            <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
-                <div class="p-6">
+            <div>
                     <form wire:submit="analyzeFile">
                         {{ $this->analyzeForm }}
                     </form>
-                </div>
 
                 @if($analyzeResult)
                     <div class="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-6">
