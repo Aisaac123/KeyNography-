@@ -34,7 +34,6 @@ class AppPanelProvider extends PanelProvider
             ])
             ->brandLogoHeight('68px')
             ->favicon(asset('assets/logo.png'))
-            ->brandLogo(asset('assets/logo.png'))
             ->topNavigation()
             ->brandLogo(fn () => view('filament.brand-logo'))
             ->viteTheme('resources/css/filament/app/theme.css')
