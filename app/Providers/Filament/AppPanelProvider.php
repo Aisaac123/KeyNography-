@@ -30,7 +30,7 @@ class AppPanelProvider extends PanelProvider
             ->path('app')
             ->login()
             ->colors([
-                'primary' => Color::Green,
+                'primary' => Color::hex('#5FD6B0'),
             ])
             ->brandLogoHeight('68px')
             ->favicon(asset('assets/logo.png'))

@@ -243,7 +243,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                         Actions::make([
                             Action::make('extract')
                                 ->label('🔓 Extraer Mensaje')
-                                ->color('success')
+                                ->color('primary')
                                 ->size('lg')
                                 ->action('extractMessage')
                         ])->columnSpanFull()
