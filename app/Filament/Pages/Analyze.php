@@ -4,14 +4,11 @@ namespace App\Filament\Pages;
 
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Http;
@@ -55,10 +52,49 @@ class Analyze extends Page
     }
 
     // ========================================
-    // Guardar archivo directamente en storage y obtener ruta
+    // NUEVO: Detectar tipo de archivo por extensión (IDÉNTICO AL DASHBOARD)
     // ========================================
-    private function saveAndGetFilePath($uploadedFile, string $fileType): string
+    private function detectFileType($uploadedFile): string
     {
+        // Si es un array, obtener el primer elemento
+        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
+            $firstFile = reset($uploadedFile);
+
+            if (is_object($firstFile) && method_exists($firstFile, 'getClientOriginalName')) {
+                $fileName = $firstFile->getClientOriginalName();
+            } elseif (is_object($firstFile) && method_exists($firstFile, 'getFilename')) {
+                $fileName = $firstFile->getFilename();
+            } else {
+                $fileName = '';
+            }
+        } elseif (is_string($uploadedFile)) {
+            $fileName = $uploadedFile;
+        } elseif (is_object($uploadedFile) && method_exists($uploadedFile, 'getClientOriginalName')) {
+            $fileName = $uploadedFile->getClientOriginalName();
+        } else {
+            $fileName = '';
+        }
+
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        // Detectar por extensión (IDÉNTICO AL DASHBOARD)
+        if (in_array($extension, ['wav'])) {
+            return 'audio';
+        } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'bmp'])) {
+            return 'image';
+        }
+
+        return 'image'; // Por defecto
+    }
+
+    // ========================================
+    // MÉTODO MEJORADO: Guardar archivo directamente en storage y obtener ruta (IDÉNTICO AL DASHBOARD)
+    // ========================================
+    private function saveAndGetFilePath($uploadedFile): string
+    {
+        // ✅ Detectar tipo automáticamente
+        $fileType = $this->detectFileType($uploadedFile);
+
         // Generar nombre único
         $extension = $fileType === 'audio' ? 'wav' : 'png';
         $fileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
@@ -71,11 +107,45 @@ class Analyze extends Page
             $disk->makeDirectory('temp');
         }
 
+        // ✅ NUEVO: Si es un array asociativo con UUID (Livewire/Filament)
+        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
+            // Obtener el primer valor del array (el objeto TemporaryUploadedFile)
+            $firstFile = reset($uploadedFile);
+
+            // Si es un objeto TemporaryUploadedFile de Livewire
+            if (is_object($firstFile) && method_exists($firstFile, 'getRealPath')) {
+                $realPath = $firstFile->getRealPath();
+                if (file_exists($realPath)) {
+                    $content = file_get_contents($realPath);
+                    $disk->put('temp/'.$fileName, $content);
+
+                    return $disk->path('temp/'.$fileName);
+                }
+
+                // Intentar con path() si getRealPath() falla
+                if (method_exists($firstFile, 'path')) {
+                    $path = $firstFile->path();
+                    if (file_exists($path)) {
+                        $content = file_get_contents($path);
+                        $disk->put('temp/'.$fileName, $content);
+
+                        return $disk->path('temp/'.$fileName);
+                    }
+                }
+            }
+
+            // Si no es objeto, intentar recursivamente con el primer elemento
+            if (! is_object($firstFile)) {
+                return $this->saveAndGetFilePath($firstFile);
+            }
+        }
+
         // Si es un string (nombre de archivo temporal de Livewire)
         if (is_string($uploadedFile)) {
             // Buscar en todas las ubicaciones posibles
             $possiblePaths = [
                 storage_path('app/livewire-tmp/'.$uploadedFile),
+                storage_path('app/private/livewire-tmp/'.$uploadedFile),
                 storage_path('app/private/'.$uploadedFile),
                 storage_path('app/uploads/'.$uploadedFile),
                 storage_path('app/'.$uploadedFile),
@@ -84,6 +154,7 @@ class Analyze extends Page
             // También buscar sin el nombre, solo en los directorios
             $baseName = basename($uploadedFile);
             $possiblePaths[] = storage_path('app/livewire-tmp/'.$baseName);
+            $possiblePaths[] = storage_path('app/private/livewire-tmp/'.$baseName);
             $possiblePaths[] = storage_path('app/private/'.$baseName);
 
             foreach ($possiblePaths as $path) {
@@ -105,10 +176,32 @@ class Analyze extends Page
 
                 foreach ($iterator as $file) {
                     if ($file->isFile()) {
-                        $fileName = $file->getFilename();
+                        $fileNameFound = $file->getFilename();
                         // Buscar por nombre completo o por hash
-                        if ($fileName === $uploadedFile || $fileName === basename($uploadedFile) ||
-                            strpos($fileName, basename($uploadedFile)) !== false) {
+                        if ($fileNameFound === $uploadedFile || $fileNameFound === basename($uploadedFile) ||
+                            strpos($fileNameFound, basename($uploadedFile)) !== false) {
+                            $content = file_get_contents($file->getRealPath());
+                            $tempFileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
+                            $disk->put('temp/'.$tempFileName, $content);
+
+                            return $disk->path('temp/'.$tempFileName);
+                        }
+                    }
+                }
+            }
+
+            // Búsqueda recursiva en private/livewire-tmp
+            $privateLivewireTmpPath = storage_path('app/private/livewire-tmp');
+            if (is_dir($privateLivewireTmpPath)) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($privateLivewireTmpPath, \RecursiveDirectoryIterator::SKIP_DOTS)
+                );
+
+                foreach ($iterator as $file) {
+                    if ($file->isFile()) {
+                        $fileNameFound = $file->getFilename();
+                        if ($fileNameFound === $uploadedFile || $fileNameFound === basename($uploadedFile) ||
+                            strpos($fileNameFound, basename($uploadedFile)) !== false) {
                             $content = file_get_contents($file->getRealPath());
                             $tempFileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
                             $disk->put('temp/'.$tempFileName, $content);
@@ -120,7 +213,7 @@ class Analyze extends Page
             }
         }
 
-        // Si es un objeto UploadedFile
+        // Si es un objeto UploadedFile directo
         if (is_object($uploadedFile) && method_exists($uploadedFile, 'getRealPath')) {
             $realPath = $uploadedFile->getRealPath();
             if (file_exists($realPath)) {
@@ -131,16 +224,11 @@ class Analyze extends Page
             }
         }
 
-        // Si es un array (a veces Filament lo envía así)
-        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
-            return $this->saveAndGetFilePath($uploadedFile[0], $fileType);
-        }
-
         throw new \Exception('No se pudo procesar el archivo. Debug: '.(is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
     }
 
     // ========================================
-    // MÉTODO: Limpiar archivo temporal
+    // MÉTODO: Limpiar archivo temporal (IDÉNTICO AL DASHBOARD)
     // ========================================
     private function cleanupTempFile(string $path): void
     {
@@ -149,6 +237,9 @@ class Analyze extends Page
         }
     }
 
+    // ========================================
+    // FORMULARIO DE ANÁLISIS - SIN SELECT (IDÉNTICO AL DASHBOARD)
+    // ========================================
     public function analyzeForm(Schema $form): Schema
     {
         return $form
@@ -156,29 +247,17 @@ class Analyze extends Page
                 Section::make('Análisis de Esteganografía')
                     ->description('Detecta si un archivo contiene mensajes ocultos')
                     ->schema([
-                        Select::make('file_type')
-                            ->label('Tipo de Archivo')
-                            ->options([
-                                'image' => '🖼️ Imagen',
-                                'audio' => '🎵 Audio',
-                            ])
-                            ->required()
-                            ->live()
-                            ->default('image')
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                $set('file', null);
-                            }),
-
                         FileUpload::make('file')
-                            ->label(fn (Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV para Analizar' : 'Subir Imagen para Analizar')
-                            ->acceptedFileTypes(fn (Get $get) => $get('file_type') === 'audio'
-                                ? ['audio/wav', 'audio/x-wav', 'audio/wave']
-                                : ['image/png', 'image/jpeg', 'image/jpg'])
-                            ->maxSize(10240)
+                            ->label('Subir Archivo para Analizar (Imagen o Audio)')
+                            ->acceptedFileTypes([
+                                'image/png', 'image/jpeg', 'image/jpg',
+                                'audio/wav', 'audio/x-wav', 'audio/wave',
+                                '.png', '.jpg', '.jpeg', '.wav',
+                            ])
+                            ->maxSize(10240) // 10MB
                             ->required()
-                            ->disk('local')
-                            ->directory('uploads')
-                            ->visibility('private')
+                            ->storeFiles(false) // ✅ IDÉNTICO AL DASHBOARD
+                            ->helperText('⚠️ Formatos: PNG, JPG, JPEG, WAV. Máximo 10MB')
                             ->live(),
 
                         Actions::make([
@@ -195,29 +274,32 @@ class Analyze extends Page
     }
 
     // ========================================
-    // ACCIÓN: ANALIZAR ARCHIVO
+    // ACCIÓN: ANALIZAR ARCHIVO - AUTO-DETECT (IDÉNTICO AL DASHBOARD)
     // ========================================
     public function analyzeFile(): void
     {
-        $data = $this->analyzeForm->getState();
-
         try {
-            if (empty($data['file'])) {
+            $fileData = $this->analyzeData['file'] ?? null;
+
+            if (empty($fileData)) {
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            // Guardar archivo y obtener ruta real
-            $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
+            // ✅ Detectar tipo automáticamente (IDÉNTICO AL DASHBOARD)
+            $fileType = $this->detectFileType($fileData);
+
+            // ✅ Guardar archivo (sin pasar fileType como parámetro)
+            $filePath = $this->saveAndGetFilePath($fileData);
 
             if (! file_exists($filePath)) {
                 throw new \Exception('Error al procesar el archivo');
             }
 
-            $endpoint = $data['file_type'] === 'audio'
+            $endpoint = $fileType === 'audio'
                 ? '/audio/steganalysis/analyze'
                 : '/image/steganalysis/analyze';
 
-            $fieldName = $data['file_type'] === 'audio' ? 'audio' : 'image';
+            $fieldName = $fileType === 'audio' ? 'audio' : 'image';
 
             $response = Http::timeout(60)
                 ->attach(
@@ -240,9 +322,6 @@ class Analyze extends Page
                     ->title($this->analyzeResult['verdict'])
                     ->body("Confianza: {$this->analyzeResult['confidence']}%")
                     ->send();
-
-                // Limpiar formulario
-                $this->analyzeForm->fill(['file_type' => 'image', 'file' => null]);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');

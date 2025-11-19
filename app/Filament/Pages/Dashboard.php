@@ -401,9 +401,6 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     ->body("Capacidad usada: {$result['capacity_used']}%")
                     ->send();
 
-                // ✅ Limpiar formulario
-                $this->embedData = ['file' => null, 'message' => null];
-                $this->embedForm->fill($this->embedData);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'][0]['msg'] ?? 'Error al comunicarse con la API');
@@ -477,9 +474,6 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                         ->send();
                 }
 
-                // ✅ Limpiar formulario
-                $this->extractData = ['file' => null];
-                $this->extractForm->fill($this->extractData);
             } else {
                 $error = $response->json();
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
