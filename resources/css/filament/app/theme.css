@@ -2,6 +2,7 @@
 @import '../../../../resources/css/app.css';
 @import 'tailwindcss';
 
-
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
+@source '../../../../vendor/awcodes/light-switch/resources/**/*.blade.php';
+@source '../../../../vendor/wire-elements/**/*.blade.php';

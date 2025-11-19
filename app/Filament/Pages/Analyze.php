@@ -24,10 +24,13 @@ class Analyze extends Page
     use WithFileUploads;
 
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-chart-bar';
+
     protected static string|null|\BackedEnum $activeNavigationIcon = 'heroicon-s-chart-bar';
 
     protected string $view = 'filament.pages.analyze';
+
     protected static ?string $navigationLabel = 'Análisis de Esteganografía';
+
     protected static ?string $title = '';
 
     public function getMaxContentWidth(): Width
@@ -58,13 +61,13 @@ class Analyze extends Page
     {
         // Generar nombre único
         $extension = $fileType === 'audio' ? 'wav' : 'png';
-        $fileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
+        $fileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
 
         // Disk local
         $disk = Storage::disk('local');
 
         // Crear directorio temp si no existe
-        if (!$disk->exists('temp')) {
+        if (! $disk->exists('temp')) {
             $disk->makeDirectory('temp');
         }
 
@@ -72,23 +75,24 @@ class Analyze extends Page
         if (is_string($uploadedFile)) {
             // Buscar en todas las ubicaciones posibles
             $possiblePaths = [
-                storage_path('app/livewire-tmp/' . $uploadedFile),
-                storage_path('app/private/' . $uploadedFile),
-                storage_path('app/uploads/' . $uploadedFile),
-                storage_path('app/' . $uploadedFile),
+                storage_path('app/livewire-tmp/'.$uploadedFile),
+                storage_path('app/private/'.$uploadedFile),
+                storage_path('app/uploads/'.$uploadedFile),
+                storage_path('app/'.$uploadedFile),
             ];
 
             // También buscar sin el nombre, solo en los directorios
             $baseName = basename($uploadedFile);
-            $possiblePaths[] = storage_path('app/livewire-tmp/' . $baseName);
-            $possiblePaths[] = storage_path('app/private/' . $baseName);
+            $possiblePaths[] = storage_path('app/livewire-tmp/'.$baseName);
+            $possiblePaths[] = storage_path('app/private/'.$baseName);
 
             foreach ($possiblePaths as $path) {
                 if (file_exists($path)) {
                     // Copiar a nuestra ubicación temp
                     $content = file_get_contents($path);
-                    $disk->put('temp/' . $fileName, $content);
-                    return $disk->path('temp/' . $fileName);
+                    $disk->put('temp/'.$fileName, $content);
+
+                    return $disk->path('temp/'.$fileName);
                 }
             }
 
@@ -106,9 +110,10 @@ class Analyze extends Page
                         if ($fileName === $uploadedFile || $fileName === basename($uploadedFile) ||
                             strpos($fileName, basename($uploadedFile)) !== false) {
                             $content = file_get_contents($file->getRealPath());
-                            $tempFileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
-                            $disk->put('temp/' . $tempFileName, $content);
-                            return $disk->path('temp/' . $tempFileName);
+                            $tempFileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
+                            $disk->put('temp/'.$tempFileName, $content);
+
+                            return $disk->path('temp/'.$tempFileName);
                         }
                     }
                 }
@@ -120,17 +125,18 @@ class Analyze extends Page
             $realPath = $uploadedFile->getRealPath();
             if (file_exists($realPath)) {
                 $content = file_get_contents($realPath);
-                $disk->put('temp/' . $fileName, $content);
-                return $disk->path('temp/' . $fileName);
+                $disk->put('temp/'.$fileName, $content);
+
+                return $disk->path('temp/'.$fileName);
             }
         }
 
         // Si es un array (a veces Filament lo envía así)
-        if (is_array($uploadedFile) && !empty($uploadedFile)) {
+        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
             return $this->saveAndGetFilePath($uploadedFile[0], $fileType);
         }
 
-        throw new \Exception('No se pudo procesar el archivo. Debug: ' . (is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
+        throw new \Exception('No se pudo procesar el archivo. Debug: '.(is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
     }
 
     // ========================================
@@ -164,8 +170,8 @@ class Analyze extends Page
                             }),
 
                         FileUpload::make('file')
-                            ->label(fn(Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV para Analizar' : 'Subir Imagen para Analizar')
-                            ->acceptedFileTypes(fn(Get $get) => $get('file_type') === 'audio'
+                            ->label(fn (Get $get) => $get('file_type') === 'audio' ? 'Subir Audio WAV para Analizar' : 'Subir Imagen para Analizar')
+                            ->acceptedFileTypes(fn (Get $get) => $get('file_type') === 'audio'
                                 ? ['audio/wav', 'audio/x-wav', 'audio/wave']
                                 : ['image/png', 'image/jpeg', 'image/jpg'])
                             ->maxSize(10240)
@@ -180,10 +186,10 @@ class Analyze extends Page
                                 ->label('🔍 Analizar Archivo')
                                 ->color('warning')
                                 ->size('lg')
-                                ->action('analyzeFile')
-                        ])->columnSpanFull()
+                                ->action('analyzeFile'),
+                        ])->columnSpanFull(),
                     ])
-                    ->columns(1)
+                    ->columns(1),
             ])
             ->statePath('analyzeData');
     }
@@ -203,7 +209,7 @@ class Analyze extends Page
             // Guardar archivo y obtener ruta real
             $filePath = $this->saveAndGetFilePath($data['file'], $data['file_type']);
 
-            if (!file_exists($filePath)) {
+            if (! file_exists($filePath)) {
                 throw new \Exception('Error al procesar el archivo');
             }
 
@@ -219,7 +225,7 @@ class Analyze extends Page
                     file_get_contents($filePath),
                     basename($filePath)
                 )
-                ->post($this->apiBaseUrl . $endpoint);
+                ->post($this->apiBaseUrl.$endpoint);
 
             // Limpiar archivo temporal
             $this->cleanupTempFile($filePath);

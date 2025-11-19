@@ -6,7 +6,7 @@
             <div class="flex gap-6">
                 <div class="flex-shrink-0">
                     <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center border border-slate-300 dark:border-slate-600/50 shadow-lg shadow-black/5 dark:shadow-black/20">
-                        <x-heroicon-o-lock-closed class="w-8 h-8 text-slate-700 dark:text-slate-300"/>
+                        <x-heroicon-o-eye class="w-8 h-8 text-slate-700 dark:text-slate-300"/>
                     </div>
                 </div>
                 <div class="flex-1 text-center ">

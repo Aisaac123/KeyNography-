@@ -8,13 +8,11 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\WithFileUploads;
-use Filament\Schemas\Schema;
 
 class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\HasForms
 {
@@ -22,9 +20,13 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     use WithFileUploads;
 
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-lock-closed';
-    protected static string|null|\BackedEnum $activeNavigationIcon = 'heroicon-s-lock-closed';
+
+    protected static string|null|\BackedEnum $activeNavigationIcon = 'heroicon-s-lock-open';
+
     protected string $view = 'dashboard';
+
     protected static ?string $navigationLabel = 'Infección y Extracción';
+
     protected static ?string $title = '';
 
     public function getMaxContentWidth(): Width
@@ -37,12 +39,13 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
     // Estados de los formularios
     public ?array $embedData = [];
+
     public ?array $extractData = [];
 
     // Resultados
     public ?string $embedResult = null;
-    public ?string $extractResult = null;
 
+    public ?string $extractResult = null;
 
     protected function getForms(): array
     {
@@ -58,7 +61,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     private function detectFileType($uploadedFile): string
     {
         // Si es un array, obtener el primer elemento
-        if (is_array($uploadedFile) && !empty($uploadedFile)) {
+        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
             $firstFile = reset($uploadedFile);
 
             if (is_object($firstFile) && method_exists($firstFile, 'getClientOriginalName')) {
@@ -95,18 +98,18 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     {
         // Generar nombre único
         $extension = $fileType === 'audio' ? 'wav' : 'png';
-        $fileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
+        $fileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
 
         // Disk local
         $disk = Storage::disk('local');
 
         // Crear directorio temp si no existe
-        if (!$disk->exists('temp')) {
+        if (! $disk->exists('temp')) {
             $disk->makeDirectory('temp');
         }
 
         // ✅ NUEVO: Si es un array asociativo con UUID (Livewire/Filament)
-        if (is_array($uploadedFile) && !empty($uploadedFile)) {
+        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
             // Obtener el primer valor del array (el objeto TemporaryUploadedFile)
             $firstFile = reset($uploadedFile);
 
@@ -115,8 +118,9 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 $realPath = $firstFile->getRealPath();
                 if (file_exists($realPath)) {
                     $content = file_get_contents($realPath);
-                    $disk->put('temp/' . $fileName, $content);
-                    return $disk->path('temp/' . $fileName);
+                    $disk->put('temp/'.$fileName, $content);
+
+                    return $disk->path('temp/'.$fileName);
                 }
 
                 // Intentar con path() si getRealPath() falla
@@ -124,14 +128,15 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     $path = $firstFile->path();
                     if (file_exists($path)) {
                         $content = file_get_contents($path);
-                        $disk->put('temp/' . $fileName, $content);
-                        return $disk->path('temp/' . $fileName);
+                        $disk->put('temp/'.$fileName, $content);
+
+                        return $disk->path('temp/'.$fileName);
                     }
                 }
             }
 
             // Si no es objeto, intentar recursivamente con el primer elemento
-            if (!is_object($firstFile)) {
+            if (! is_object($firstFile)) {
                 return $this->saveAndGetFilePath($firstFile, $fileType);
             }
         }
@@ -140,25 +145,26 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
         if (is_string($uploadedFile)) {
             // Buscar en todas las ubicaciones posibles
             $possiblePaths = [
-                storage_path('app/livewire-tmp/' . $uploadedFile),
-                storage_path('app/private/livewire-tmp/' . $uploadedFile),
-                storage_path('app/private/' . $uploadedFile),
-                storage_path('app/uploads/' . $uploadedFile),
-                storage_path('app/' . $uploadedFile),
+                storage_path('app/livewire-tmp/'.$uploadedFile),
+                storage_path('app/private/livewire-tmp/'.$uploadedFile),
+                storage_path('app/private/'.$uploadedFile),
+                storage_path('app/uploads/'.$uploadedFile),
+                storage_path('app/'.$uploadedFile),
             ];
 
             // También buscar sin el nombre, solo en los directorios
             $baseName = basename($uploadedFile);
-            $possiblePaths[] = storage_path('app/livewire-tmp/' . $baseName);
-            $possiblePaths[] = storage_path('app/private/livewire-tmp/' . $baseName);
-            $possiblePaths[] = storage_path('app/private/' . $baseName);
+            $possiblePaths[] = storage_path('app/livewire-tmp/'.$baseName);
+            $possiblePaths[] = storage_path('app/private/livewire-tmp/'.$baseName);
+            $possiblePaths[] = storage_path('app/private/'.$baseName);
 
             foreach ($possiblePaths as $path) {
                 if (file_exists($path)) {
                     // Copiar a nuestra ubicación temp
                     $content = file_get_contents($path);
-                    $disk->put('temp/' . $fileName, $content);
-                    return $disk->path('temp/' . $fileName);
+                    $disk->put('temp/'.$fileName, $content);
+
+                    return $disk->path('temp/'.$fileName);
                 }
             }
 
@@ -176,9 +182,10 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                         if ($fileNameFound === $uploadedFile || $fileNameFound === basename($uploadedFile) ||
                             strpos($fileNameFound, basename($uploadedFile)) !== false) {
                             $content = file_get_contents($file->getRealPath());
-                            $tempFileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
-                            $disk->put('temp/' . $tempFileName, $content);
-                            return $disk->path('temp/' . $tempFileName);
+                            $tempFileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
+                            $disk->put('temp/'.$tempFileName, $content);
+
+                            return $disk->path('temp/'.$tempFileName);
                         }
                     }
                 }
@@ -197,9 +204,10 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                         if ($fileNameFound === $uploadedFile || $fileNameFound === basename($uploadedFile) ||
                             strpos($fileNameFound, basename($uploadedFile)) !== false) {
                             $content = file_get_contents($file->getRealPath());
-                            $tempFileName = 'temp_' . uniqid() . '_' . time() . '.' . $extension;
-                            $disk->put('temp/' . $tempFileName, $content);
-                            return $disk->path('temp/' . $tempFileName);
+                            $tempFileName = 'temp_'.uniqid().'_'.time().'.'.$extension;
+                            $disk->put('temp/'.$tempFileName, $content);
+
+                            return $disk->path('temp/'.$tempFileName);
                         }
                     }
                 }
@@ -211,12 +219,13 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
             $realPath = $uploadedFile->getRealPath();
             if (file_exists($realPath)) {
                 $content = file_get_contents($realPath);
-                $disk->put('temp/' . $fileName, $content);
-                return $disk->path('temp/' . $fileName);
+                $disk->put('temp/'.$fileName, $content);
+
+                return $disk->path('temp/'.$fileName);
             }
         }
 
-        throw new \Exception('No se pudo procesar el archivo. Debug: ' . (is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
+        throw new \Exception('No se pudo procesar el archivo. Debug: '.(is_string($uploadedFile) ? $uploadedFile : gettype($uploadedFile)));
     }
 
     // ========================================
@@ -244,7 +253,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                             ->acceptedFileTypes([
                                 'image/png', 'image/jpeg', 'image/jpg',
                                 'audio/wav', 'audio/x-wav', 'audio/wave',
-                                '.png', '.jpg', '.jpeg', '.wav'
+                                '.png', '.jpg', '.jpeg', '.wav',
                             ])
                             ->maxSize(10240) // 10MB
                             ->required()
@@ -268,10 +277,10 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                                 ->requiresConfirmation()
                                 ->modalHeading('¿Infectar archivo?')
                                 ->modalDescription('Se ocultará el mensaje dentro del archivo seleccionado.')
-                                ->action('embedMessage')
-                        ])->columnSpanFull()
+                                ->action('embedMessage'),
+                        ])->columnSpanFull(),
                     ])
-                    ->columns(1)
+                    ->columns(1),
             ])
             ->statePath('embedData');
     }
@@ -291,7 +300,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                             ->acceptedFileTypes([
                                 'image/png', 'image/jpeg', 'image/jpg',
                                 'audio/wav', 'audio/x-wav', 'audio/wave',
-                                '.png', '.jpg', '.jpeg', '.wav'
+                                '.png', '.jpg', '.jpeg', '.wav',
                             ])
                             ->maxSize(10240) // 10MB
                             ->required()
@@ -304,10 +313,10 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                                 ->label('🔓 Extraer Mensaje')
                                 ->color('primary')
                                 ->size('lg')
-                                ->action('extractMessage')
-                        ])->columnSpanFull()
+                                ->action('extractMessage'),
+                        ])->columnSpanFull(),
                     ])
-                    ->columns(1)
+                    ->columns(1),
             ])
             ->statePath('extractData');
     }
@@ -335,7 +344,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
             $filePath = $this->saveAndGetFilePath($fileData, $fileType);
 
-            if (!file_exists($filePath)) {
+            if (! file_exists($filePath)) {
                 throw new \Exception('Error al procesar el archivo');
             }
 
@@ -345,7 +354,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
             $fieldName = $fileType === 'audio' ? 'audio' : 'image';
 
-            $url = $this->apiBaseUrl . $endpoint . '?message=' . urlencode($message);
+            $url = $this->apiBaseUrl.$endpoint.'?message='.urlencode($message);
 
             $response = Http::timeout(60)
                 ->attach(
@@ -354,7 +363,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     basename($filePath)
                 )
                 ->post($url, [
-                    'message' => $message
+                    'message' => $message,
                 ]);
 
             $this->cleanupTempFile($filePath);
@@ -364,7 +373,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
                 $base64Data = $result['file_base64'];
                 $extension = $fileType === 'audio' ? 'wav' : 'png';
-                $fileName = 'infected_' . time() . '.' . $extension;
+                $fileName = 'infected_'.time().'.'.$extension;
 
                 $decodedFile = base64_decode($base64Data);
 
@@ -382,7 +391,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     'payload_size' => $result['payload_size'],
                     'capacity_used' => $result['capacity_used'],
                     'message' => $message,
-                    'file_type' => $fileType
+                    'file_type' => $fileType,
                 ]);
 
                 $fileTypeLabel = $fileType === 'audio' ? '🎵 Audio' : '🖼️ Imagen';
@@ -425,7 +434,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
             $filePath = $this->saveAndGetFilePath($fileData, $fileType);
 
-            if (!file_exists($filePath)) {
+            if (! file_exists($filePath)) {
                 throw new \Exception('Error al procesar el archivo');
             }
 
@@ -441,7 +450,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     file_get_contents($filePath),
                     basename($filePath)
                 )
-                ->post($this->apiBaseUrl . $endpoint);
+                ->post($this->apiBaseUrl.$endpoint);
 
             $this->cleanupTempFile($filePath);
 
@@ -451,7 +460,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 $this->extractResult = json_encode([
                     'message' => $result['message'] ?? 'No se encontró mensaje',
                     'length' => $result['message_length'] ?? 0,
-                    'file_type' => $fileType
+                    'file_type' => $fileType,
                 ]);
 
                 if ($result['message_length'] > 0) {

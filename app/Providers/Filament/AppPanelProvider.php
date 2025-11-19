@@ -2,24 +2,22 @@
 
 namespace App\Providers\Filament;
 
+use Awcodes\LightSwitch\LightSwitchPlugin;
 use Filament\FontProviders\GoogleFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Nagi\FilamentAbyssTheme\FilamentAbyssThemePlugin;
+use pxlrbt\FilamentSpotlight\SpotlightPlugin;
 
 class AppPanelProvider extends PanelProvider
 {
@@ -33,8 +31,12 @@ class AppPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::hex('#5FD6B0'),
             ])
-            ->brandLogoHeight('68px')
-            ->favicon(asset('assets/logo.png'))
+            ->plugins([
+                SpotlightPlugin::make(),
+                LightSwitchPlugin::make(),
+            ])
+            ->brandLogoHeight('72px')
+            ->favicon(asset('assets/favicon.ico'))
             ->topNavigation()
             ->brandLogo(fn () => view('filament.brand-logo'))
             ->viteTheme('resources/css/filament/app/theme.css')
