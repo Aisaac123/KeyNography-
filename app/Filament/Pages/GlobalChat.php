@@ -96,7 +96,7 @@ class GlobalChat extends Page
             return 'image';
         }
 
-        if (in_array($extension, ['wav', 'mp3', 'ogg', 'm4a'])) {
+        if (in_array($extension, ['wav'])) {
             return 'audio';
         }
 
@@ -469,7 +469,7 @@ class GlobalChat extends Page
 
         $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
-        if (in_array($extension, ['wav', 'mp3'])) {
+        if (in_array($extension, ['wav'])) {
             return 'audio';
         } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'bmp'])) {
             return 'image';
@@ -730,14 +730,14 @@ class GlobalChat extends Page
                     ->label('Subir Archivo Esteganográfico')
                     ->acceptedFileTypes([
                         'image/png', 'image/jpeg', 'image/jpg',
-                        'audio/wav', 'audio/mp3', 'audio/x-wav',
+                        'audio/wav',
                     ])
                     ->disk('public')
                     ->directory('messages')
                     ->visibility('public')
                     ->maxSize(1024)
                     ->required()
-                    ->helperText('📎 PNG, JPG, JPEG, WAV, MP3 con esteganografía. Máximo 1MB')
+                    ->helperText('📎 PNG, JPG, JPEG, WAV con esteganografía. Máximo 1MB')
                     ->imagePreviewHeight('100')
                     ->storeFiles(false)
                     ->live(),
