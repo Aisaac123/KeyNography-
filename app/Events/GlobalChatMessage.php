@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
-use App\Models\User;
 use App\Models\ChatMessage;
+use App\Models\User;
 use Illuminate\Broadcasting\Channel; // ✅ Channel público
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -34,6 +34,7 @@ class GlobalChatMessage implements ShouldBroadcast
         return [
             'id' => $this->message->id,
             'message' => $this->message->message,
+            'hidden_message' => $this->message->hidden_message,
             'user' => [
                 'id' => $this->user->id,
                 'name' => $this->user->name,
@@ -41,6 +42,6 @@ class GlobalChatMessage implements ShouldBroadcast
             ],
             'timestamp' => $this->message->created_at->toIso8601String(),
             'human_time' => $this->message->created_at->diffForHumans(),
-            ];
-        }
+        ];
+    }
 }

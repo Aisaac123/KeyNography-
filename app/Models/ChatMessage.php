@@ -7,7 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChatMessage extends Model
 {
-    protected $fillable = ['user_id', 'message'];
+    protected $fillable = [
+        'user_id',
+        'message',
+        'hidden_message',
+    ];
 
     protected $with = ['user'];
 
@@ -21,5 +25,5 @@ class ChatMessage extends Model
         return $query->with('user')
             ->latest()
             ->limit($limit);
-        }
+    }
 }

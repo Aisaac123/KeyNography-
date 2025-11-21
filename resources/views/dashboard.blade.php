@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div class="mx-auto min-w-[80rem] space-y-8">
+    <div class="mx-auto xl:min-w-[80rem] space-y-8">
 
         {{-- Header Principal --}}
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-8 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none">
