@@ -1,6 +1,6 @@
 <x-filament-panels::page class="">
     <div x-data="chatComponent()" x-init="init()">
-        <div class="h-[calc(100vh-7rem)] xl:min-w-[80rem] flex flex-col bg-gray-50 dark:bg-gray-900 rounded-xl">
+        <div class="h-[calc(100vh-7rem)] xl:min-w-[80rem] max-w-[60rem]  flex flex-col bg-gray-50 dark:bg-gray-900 rounded-xl">
 
             {{-- Header del Chat con Switches --}}
             <div class="bg-white rounded-t-xl dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shadow-sm flex-shrink-0">
@@ -74,11 +74,11 @@
                                 ></span>
                             </button>
                             <div class="flex gap-1">
-                                <x-heroicon-o-chat-bubble-bottom-center-text
+                                <x-heroicon-o-lock-closed
                                     x-bind:class="$wire.viewMode === 'text' ? 'w-5 h-5 transition-colors text-primary-600 dark:text-primary-400' : 'w-5 h-5 transition-colors text-gray-400'"
                                 />
                                 <span class="md:block hidden transition-colors" x-bind:class="$wire.viewMode === 'text' ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500'">
-                                    Mensaje Oculto
+                                    Oculto
                                 </span>
                             </div>
                         </div>
@@ -244,6 +244,116 @@
                                                             </audio>
                                                         </div>
                                                     @endif
+
+
+                                                @elseif($viewMode === 'text')
+                                                    <div class="{{ $message['is_own']
+                                                            ? 'bg-primary-500 text-white rounded-l-2xl rounded-tr-2xl rounded-br-sm'
+                                                            : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-r-2xl rounded-tl-2xl rounded-bl-sm border border-gray-200 dark:border-gray-700'
+                                                        }} px-4 py-3 shadow-sm min-w-[200px]">
+
+                                                        {{-- CASO 1: Aún extrayendo (hidden_content_type es null) --}}
+                                                        @if(!isset($message['hidden_content_type']) || $message['hidden_content_type'] === null)
+                                                            <div class="flex items-center gap-2 mb-2">
+                                                                <div class="animate-spin rounded-full h-3 w-3 border-b border-current"></div>
+                                                                <span class="text-xs font-semibold">Extrayendo...</span>
+                                                            </div>
+                                                            <p class="text-sm leading-relaxed break-words italic opacity-70">
+                                                                Procesando...
+                                                            </p>
+
+                                                            {{-- CASO 2: Documento oculto --}}
+                                                        @elseif($message['hidden_content_type'] === 'document')
+                                                            <div class="flex items-center gap-2 mb-2">
+                                                                @if($message['is_password_protected'])
+                                                                    <x-heroicon-o-lock-closed class="w-4 h-4" />
+                                                                    <span class="text-xs font-semibold">Documento protegido:</span>
+                                                                @else
+                                                                    <x-heroicon-o-document class="w-4 h-4" />
+                                                                    <span class="text-xs font-semibold">Documento oculto:</span>
+                                                                @endif
+                                                            </div>
+
+                                                            @if($message['is_password_protected'])
+                                                                {{-- Documento protegido con contraseña --}}
+                                                                <div class="flex items-center gap-2 text-sm">
+                                                                    <x-heroicon-o-lock-closed class="w-5 h-5 text-amber-300" />
+                                                                    <span>Este documento está protegido con contraseña</span>
+                                                                </div>
+                                                            @else
+                                                                {{-- Documento disponible para descargar --}}
+                                                                <div class="space-y-2">
+                                                                    <div class="flex items-center gap-2">
+                                                                        <x-dynamic-component
+                                                                            :component="$message['document_icon'] ?? 'heroicon-o-document'"
+                                                                            class="w-7 h-7 text-gray-700 dark:text-gray-300"
+                                                                        />
+
+                                                                        <div class="flex-1 min-w-0">
+                                                                            <p class="text-sm font-medium truncate">
+                                                                                {{ $message['hidden_document_filename'] ?? 'documento.bin' }}
+                                                                            </p>
+                                                                            <p class="text-xs opacity-70">
+                                                                                {{ $message['formatted_document_size'] ?? 'Tamaño desconocido' }}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <button
+                                                                        wire:click="downloadHiddenDocument({{ $message['id'] }})"
+                                                                        class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                                                                        {{ $message['is_own']
+                                                                            ? 'bg-white/20 hover:bg-white/30 text-white'
+                                                                            : 'bg-primary-500 hover:bg-primary-600 text-white'
+                                                                        }}"
+                                                                    >
+                                                                        <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
+                                                                        <span>Descargar documento</span>
+                                                                    </button>
+                                                                </div>
+                                                            @endif
+
+                                                            {{-- CASO 3: Mensaje de texto oculto --}}
+                                                        @elseif($message['hidden_content_type'] === 'text')
+                                                            <div class="flex items-center gap-2 mb-2">
+                                                                <x-heroicon-o-eye-slash class="w-4 h-4" />
+                                                                <span class="text-xs font-semibold">Mensaje oculto:</span>
+                                                            </div>
+                                                            <p class="text-sm leading-relaxed break-words">
+                                                                {{ $message['hidden_message'] }}
+                                                            </p>
+
+                                                            {{-- CASO 4: Sin contenido oculto --}}
+                                                        @elseif($message['hidden_content_type'] === 'empty')
+                                                            <div class="flex items-center gap-2 mb-2">
+                                                                <x-heroicon-o-exclamation-circle class="w-4 h-4 text-amber-300" />
+                                                                <span class="text-xs font-semibold">Sin contenido:</span>
+                                                            </div>
+                                                            <p class="text-sm leading-relaxed break-words italic opacity-70">
+                                                                {{ $message['hidden_message'] ?? '[Sin contenido oculto]' }}
+                                                            </p>
+
+                                                            {{-- CASO 5: Error al extraer --}}
+                                                        @elseif($message['hidden_content_type'] === 'error')
+                                                            <div class="flex items-center gap-2 mb-2">
+                                                                <x-heroicon-o-x-circle class="w-4 h-4 text-red-400" />
+                                                                <span class="text-xs font-semibold">Error:</span>
+                                                            </div>
+                                                            <p class="text-sm leading-relaxed break-words italic opacity-70">
+                                                                {{ $message['hidden_message'] ?? '[Error al extraer]' }}
+                                                            </p>
+
+                                                            {{-- CASO 6: Estado desconocido (fallback) --}}
+                                                        @else
+                                                            <div class="flex items-center gap-2 mb-2">
+                                                                <x-heroicon-o-question-mark-circle class="w-4 h-4" />
+                                                                <span class="text-xs font-semibold">Estado desconocido:</span>
+                                                            </div>
+                                                            <p class="text-sm leading-relaxed break-words italic opacity-70">
+                                                                Tipo: {{ $message['hidden_content_type'] ?? 'null' }}
+                                                            </p>
+                                                        @endif
+                                                    </div>
                                                 @else
                                                     {{-- MODO TEXTO: Mostrar mensaje oculto --}}
                                                     <div class="{{ $message['is_own']

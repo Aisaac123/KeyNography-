@@ -7,6 +7,7 @@ use App\Models\ChatMessage;
 use Auth;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Http;
@@ -20,31 +21,20 @@ class GlobalChat extends Page
     use WithFileUploads;
 
     protected string $view = 'filament.pages.global-chat';
-
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-chat-bubble-left-right';
-
     protected static string|null|\BackedEnum $activeNavigationIcon = 'heroicon-s-chat-bubble-left-right';
-
     protected static ?string $navigationLabel = 'Chat Global';
-
     protected static ?string $title = '';
 
     private string $apiBaseUrl = 'http://localhost:7000';
 
     public $messages = [];
-
     public $isLoading = true;
-
     public $onlineUsers = 0;
-
     public $connectionStatus = 'connecting';
-
     public $viewMode = 'image';
-
     public $isExtracting = false;
-
-    public $hideEmptyMessages = false; // Nueva propiedad para filtrar mensajes vacíos
-
+    public $hideEmptyMessages = false;
     public ?array $sendMessageFormData = [];
 
     public function mount()
@@ -63,32 +53,56 @@ class GlobalChat extends Page
             ->values();
 
         $this->messages = $recentMessages->map(function ($message) {
-            $fileType = $this->getFileType($message->message);
-
-            return [
-                'id' => $message->id,
-                'message' => $message->message,
-                'hidden_message' => $message->hidden_message,
-                'file_type' => $fileType,
-                'file_url' => $message->message ? Storage::url($message->message) : null,
-                'user' => [
-                    'id' => $message->user->id,
-                    'name' => $message->user->name,
-                    'email' => $message->user->email,
-                ],
-                'created_at' => $message->created_at->toISOString(),
-                'human_time' => $message->created_at->diffForHumans(),
-                'time' => $message->created_at->format('H:i'),
-                'is_own' => $message->user_id === Auth::id(),
-            ];
+            return $this->formatMessage($message);
         })->toArray();
+    }
+
+    // ========================================
+    // ✅ MÉTODO CORREGIDO: formatMessage
+    // ========================================
+    private function formatMessage($message): array
+    {
+        $fileType = $this->getFileType($message->message);
+
+        return [
+            'id' => $message->id,
+            'message' => $message->message,
+            'file_type' => $fileType,
+            'file_url' => $message->message ? Storage::url($message->message) : null,
+
+            // ✅ Contenido oculto
+            'hidden_content_type' => $message->hidden_content_type ?? null,
+            'hidden_message' => $message->hidden_message ?? null,
+
+            // ✅ Documento oculto
+            'hidden_document_path' => $message->hidden_document_path ?? null,
+            'hidden_document_filename' => $message->hidden_document_filename ?? null,
+            'hidden_document_mime_type' => $message->hidden_document_mime_type ?? null,
+            'hidden_document_size' => $message->hidden_document_size ?? null,
+            'formatted_document_size' => method_exists($message, 'getFormattedDocumentSize')
+                ? $message->getFormattedDocumentSize()
+                : null,
+            'document_icon' => method_exists($message, 'getDocumentIcon')
+                ? $message->getDocumentIcon()
+                : null,
+            'is_password_protected' => $message->is_password_protected ?? false,
+
+            // Usuario y timestamps
+            'user' => [
+                'id' => $message->user->id,
+                'name' => $message->user->name,
+                'email' => $message->user->email,
+            ],
+            'created_at' => $message->created_at->toISOString(),
+            'human_time' => $message->created_at->diffForHumans(),
+            'time' => $message->created_at->format('H:i'),
+            'is_own' => $message->user_id === Auth::id(),
+        ];
     }
 
     private function getFileType($filePath)
     {
-        if (! $filePath) {
-            return null;
-        }
+        if (!$filePath) return null;
 
         $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 
@@ -110,7 +124,6 @@ class GlobalChat extends Page
 
             if (empty($fileData)) {
                 $this->addError('sendMessageFormData.file', 'Debes subir un archivo');
-
                 return;
             }
 
@@ -124,13 +137,13 @@ class GlobalChat extends Page
             $finalPath = 'messages/'.$fileName;
 
             Storage::disk('public')->put($finalPath, file_get_contents($filePath));
-
             $this->cleanupTempFile($filePath);
 
             $chatMessage = ChatMessage::create([
                 'user_id' => Auth::id(),
                 'message' => $finalPath,
                 'hidden_message' => null,
+                'hidden_content_type' => null, // ✅ Inicializar en null
             ]);
 
             // Si estamos en modo texto, extraer el mensaje inmediatamente
@@ -143,7 +156,6 @@ class GlobalChat extends Page
                     $this->extractSingleAudio($chatMessage->id);
                 }
 
-                // Recargar el mensaje actualizado
                 $chatMessage->refresh();
             }
 
@@ -158,66 +170,53 @@ class GlobalChat extends Page
     }
 
     // ========================================
-    // MÉTODO MEJORADO: Extraer TODOS los mensajes en BATCH
+    // ✅ MÉTODO CORREGIDO: extractAllMessages
     // ========================================
     public function extractAllMessages()
     {
         $this->isExtracting = true;
 
         try {
-            // Filtrar mensajes que necesitan extracción
+            // ✅ Usar isset() para evitar errores con claves inexistentes
             $messagesToExtract = collect($this->messages)
-                ->filter(fn ($msg) => $msg['hidden_message'] === null)
+                ->filter(fn ($msg) => !isset($msg['hidden_content_type']) || $msg['hidden_content_type'] === null)
                 ->values();
 
             if ($messagesToExtract->isEmpty()) {
                 $this->isExtracting = false;
-
                 return;
             }
 
-            // Separar por tipo de archivo
-            $imageMessages = $messagesToExtract->filter(fn ($msg) => $msg['file_type'] === 'image');
-            $audioMessages = $messagesToExtract->filter(fn ($msg) => $msg['file_type'] === 'audio');
-
-            // Extraer imágenes en batch (si hay)
-            if ($imageMessages->isNotEmpty()) {
-                $this->extractImageBatch($imageMessages->all());
-            }
-
-            // Extraer audios en batch (ahora también soporta batch!)
-            if ($audioMessages->isNotEmpty()) {
-                $this->extractAudioBatch($audioMessages->all());
-            }
+            $this->extractUnifiedBatch($messagesToExtract->all());
 
         } catch (\Exception $e) {
-            \Log::error('Error extracting messages: '.$e->getMessage());
+            \Log::error('Error extracting messages: ' . $e->getMessage());
+            Notification::make()
+                ->danger()
+                ->title('Error al extraer mensajes')
+                ->body($e->getMessage())
+                ->send();
         }
 
         $this->isExtracting = false;
         $this->loadRecentMessages();
     }
 
-    // ========================================
-    // MÉTODO: Extraer múltiples IMÁGENES en batch
-    // ========================================
-    private function extractImageBatch(array $messages)
+    private function extractUnifiedBatch(array $messages)
     {
         try {
-            $request = Http::timeout(120)->asMultipart();
+            $request = Http::timeout(300)->asMultipart();
             $messageIds = [];
 
-            // Preparar archivos para el batch
             foreach ($messages as $message) {
                 $fullPath = Storage::disk('public')->path($message['message']);
 
-                if (! file_exists($fullPath)) {
+                if (!file_exists($fullPath)) {
                     continue;
                 }
 
-                // Attach cada archivo individualmente
                 $request->attach(
-                    'images',
+                    'files',
                     file_get_contents($fullPath),
                     basename($fullPath)
                 );
@@ -229,146 +228,191 @@ class GlobalChat extends Page
                 return;
             }
 
-            // Llamada a la API en batch
-            $response = $request->post($this->apiBaseUrl.'/image/stego/extract-batch');
+            $response = $request->post($this->apiBaseUrl . '/chat/extract-batch');
 
             if ($response->successful()) {
-                $results = $response->json()['results'] ?? [];
+                $data = $response->json();
+                $results = $data['results'] ?? [];
 
-                // Procesar resultados
+                \Log::info('Unified extraction results:', [
+                    'total' => $data['total'] ?? 0,
+                    'successful' => $data['successful'] ?? 0,
+                    'messages_found' => $data['messages_found'] ?? 0,
+                    'documents_found' => $data['documents_found'] ?? 0,
+                ]);
+
                 foreach ($results as $result) {
                     $index = $result['index'];
                     $messageId = $messageIds[$index] ?? null;
 
-                    if (! $messageId) {
-                        continue;
-                    }
+                    if (!$messageId) continue;
 
                     $chatMessage = ChatMessage::find($messageId);
+                    if (!$chatMessage) continue;
 
-                    if (! $chatMessage) {
-                        continue;
-                    }
-
-                    if ($result['status'] === 'error') {
-                        $chatMessage->update([
-                            'hidden_message' => '[Error: '.$result['error'].']',
-                        ]);
-                    } elseif ($result['message_length'] > 0) {
-                        $chatMessage->update([
-                            'hidden_message' => $result['message'],
-                        ]);
-                    } else {
-                        $chatMessage->update([
-                            'hidden_message' => '[Sin mensaje oculto]',
-                        ]);
-                    }
+                    $this->processExtractionResult($chatMessage, $result);
                 }
+
+                Notification::make()
+                    ->success()
+                    ->title('Extracción completada')
+                    ->body("Mensajes: {$data['messages_found']}, Documentos: {$data['documents_found']}")
+                    ->send();
+            } else {
+                throw new \Exception('Error en la API: ' . $response->status());
             }
 
         } catch (\Exception $e) {
-            \Log::error('Batch image extraction error: '.$e->getMessage());
-
-            // Fallback: extraer uno por uno
-            foreach ($messages as $message) {
-                $this->extractSingleImage($message['id']);
-            }
+            \Log::error('Unified batch extraction error: ' . $e->getMessage());
+            throw $e;
         }
     }
 
-    // ========================================
-    // NUEVO MÉTODO: Extraer múltiples AUDIOS en batch
-    // ========================================
-    private function extractAudioBatch(array $messages)
+    private function processExtractionResult(ChatMessage $chatMessage, array $result)
+    {
+        // CASO 1: ERROR
+        if ($result['status'] === 'error') {
+            $chatMessage->update([
+                'hidden_content_type' => 'error',
+                'hidden_message' => '[Error: ' . ($result['error'] ?? 'Desconocido') . ']',
+            ]);
+            return;
+        }
+
+        $contentType = $result['content_type'] ?? null;
+
+        // CASO 2: SIN CONTENIDO
+        if ($contentType === null) {
+            $chatMessage->update([
+                'hidden_content_type' => 'empty',
+                'hidden_message' => '[Sin contenido oculto]',
+            ]);
+            return;
+        }
+
+        // CASO 3: DOCUMENTO OCULTO
+        if ($contentType === 'document') {
+            $this->saveHiddenDocument($chatMessage, $result);
+            return;
+        }
+
+        // CASO 4: MENSAJE DE TEXTO
+        if ($contentType === 'text') {
+            $chatMessage->update([
+                'hidden_content_type' => 'text',
+                'hidden_message' => $result['message'] ?? '',
+            ]);
+            return;
+        }
+    }
+
+    private function saveHiddenDocument(ChatMessage $chatMessage, array $result)
     {
         try {
-            $request = Http::timeout(180)->asMultipart(); // Más timeout para audios
-            $messageIds = [];
-
-            // Preparar archivos para el batch
-            foreach ($messages as $message) {
-                $fullPath = Storage::disk('public')->path($message['message']);
-
-                if (! file_exists($fullPath)) {
-                    continue;
-                }
-
-                // Attach cada archivo individualmente
-                $request->attach(
-                    'audios',
-                    file_get_contents($fullPath),
-                    basename($fullPath)
-                );
-
-                $messageIds[] = $message['id'];
-            }
-
-            if (empty($messageIds)) {
+            if ($result['is_password_protected'] ?? false) {
+                $chatMessage->update([
+                    'hidden_content_type' => 'document',
+                    'is_password_protected' => true,
+                    'hidden_message' => '[🔒 Documento protegido con contraseña]',
+                ]);
                 return;
             }
 
-            // Llamada a la API en batch
-            $response = $request->post($this->apiBaseUrl.'/audio/stego/extract-batch');
-
-            if ($response->successful()) {
-                $results = $response->json()['results'] ?? [];
-
-                // Procesar resultados
-                foreach ($results as $result) {
-                    $index = $result['index'];
-                    $messageId = $messageIds[$index] ?? null;
-
-                    if (! $messageId) {
-                        continue;
-                    }
-
-                    $chatMessage = ChatMessage::find($messageId);
-
-                    if (! $chatMessage) {
-                        continue;
-                    }
-
-                    if ($result['status'] === 'error') {
-                        $chatMessage->update([
-                            'hidden_message' => '[Error: '.$result['error'].']',
-                        ]);
-                    } elseif ($result['message_length'] > 0) {
-                        $chatMessage->update([
-                            'hidden_message' => $result['message'],
-                        ]);
-                    } else {
-                        $chatMessage->update([
-                            'hidden_message' => '[Sin mensaje oculto]',
-                        ]);
-                    }
-                }
+            $documentBase64 = $result['document_base64'] ?? null;
+            if (!$documentBase64) {
+                throw new \Exception('Documento base64 no encontrado');
             }
+
+            $documentBytes = base64_decode($documentBase64);
+            $originalFilename = $result['original_filename'] ?? 'document.bin';
+
+            $extension = pathinfo($originalFilename, PATHINFO_EXTENSION);
+            $uniqueName = 'hidden_docs/' . uniqid() . '_' . time() . '.' . $extension;
+
+            Storage::disk('public')->put($uniqueName, $documentBytes);
+
+            $chatMessage->update([
+                'hidden_content_type' => 'document',
+                'hidden_document_path' => $uniqueName,
+                'hidden_document_filename' => $originalFilename,
+                'hidden_document_mime_type' => $result['mime_type'] ?? 'application/octet-stream',
+                'hidden_document_size' => $result['document_size'] ?? strlen($documentBytes),
+                'is_password_protected' => false,
+            ]);
 
         } catch (\Exception $e) {
-            \Log::error('Batch audio extraction error: '.$e->getMessage());
+            \Log::error('Error saving hidden document: ' . $e->getMessage());
+            $chatMessage->update([
+                'hidden_content_type' => 'error',
+                'hidden_message' => '[Error al guardar documento: ' . $e->getMessage() . ']',
+            ]);
+        }
+    }
 
-            // Fallback: extraer uno por uno
-            foreach ($messages as $message) {
-                $this->extractSingleAudio($message['id']);
+    public function downloadHiddenDocument($messageId)
+    {
+        try {
+            $chatMessage = ChatMessage::findOrFail($messageId);
+
+            if (!$chatMessage->hasHiddenDocument()) {
+                Notification::make()
+                    ->danger()
+                    ->title('Error')
+                    ->body('Este mensaje no contiene un documento oculto')
+                    ->send();
+                return;
             }
+
+            if (!$chatMessage->hidden_document_path) {
+                Notification::make()
+                    ->danger()
+                    ->title('Error')
+                    ->body('Ruta del documento no encontrada')
+                    ->send();
+                return;
+            }
+
+            $fullPath = Storage::disk('public')->path($chatMessage->hidden_document_path);
+
+            if (!file_exists($fullPath)) {
+                Notification::make()
+                    ->danger()
+                    ->title('Error')
+                    ->body('Archivo no encontrado en el servidor')
+                    ->send();
+                return;
+            }
+
+            return response()->download(
+                $fullPath,
+                $chatMessage->hidden_document_filename ?? 'document.bin'
+            );
+
+        } catch (\Exception $e) {
+            \Log::error('Error downloading document: ' . $e->getMessage());
+            Notification::make()
+                ->danger()
+                ->title('Error al descargar')
+                ->body($e->getMessage())
+                ->send();
         }
     }
 
     // ========================================
-    // MÉTODO: Extraer UNA imagen individual (fallback)
+    // ✅ MÉTODO CORREGIDO: extractSingleImage
     // ========================================
     private function extractSingleImage($messageId)
     {
         try {
             $chatMessage = ChatMessage::find($messageId);
 
-            if (! $chatMessage || $chatMessage->hidden_message !== null) {
+            if (!$chatMessage || $chatMessage->hidden_content_type !== null) {
                 return;
             }
 
             $fullPath = Storage::disk('public')->path($chatMessage->message);
 
-            if (! file_exists($fullPath)) {
+            if (!file_exists($fullPath)) {
                 throw new \Exception('Archivo no encontrado');
             }
 
@@ -386,6 +430,7 @@ class GlobalChat extends Page
                 $messageLength = $result['message_length'] ?? 0;
 
                 $chatMessage->update([
+                    'hidden_content_type' => $messageLength > 0 ? 'text' : 'empty',
                     'hidden_message' => $messageLength > 0 ? $extractedMessage : '[Sin mensaje oculto]',
                 ]);
             } else {
@@ -394,26 +439,27 @@ class GlobalChat extends Page
 
         } catch (\Exception $e) {
             $chatMessage->update([
+                'hidden_content_type' => 'error',
                 'hidden_message' => '[Error: '.$e->getMessage().']',
             ]);
         }
     }
 
     // ========================================
-    // MÉTODO: Extraer UN audio individual (fallback)
+    // ✅ MÉTODO CORREGIDO: extractSingleAudio
     // ========================================
     private function extractSingleAudio($messageId)
     {
         try {
             $chatMessage = ChatMessage::find($messageId);
 
-            if (! $chatMessage || $chatMessage->hidden_message !== null) {
+            if (!$chatMessage || $chatMessage->hidden_content_type !== null) {
                 return;
             }
 
             $fullPath = Storage::disk('public')->path($chatMessage->message);
 
-            if (! file_exists($fullPath)) {
+            if (!file_exists($fullPath)) {
                 throw new \Exception('Archivo no encontrado');
             }
 
@@ -431,6 +477,7 @@ class GlobalChat extends Page
                 $messageLength = $result['message_length'] ?? 0;
 
                 $chatMessage->update([
+                    'hidden_content_type' => $messageLength > 0 ? 'text' : 'empty',
                     'hidden_message' => $messageLength > 0 ? $extractedMessage : '[Sin mensaje oculto]',
                 ]);
             } else {
@@ -439,17 +486,15 @@ class GlobalChat extends Page
 
         } catch (\Exception $e) {
             $chatMessage->update([
+                'hidden_content_type' => 'error',
                 'hidden_message' => '[Error: '.$e->getMessage().']',
             ]);
         }
     }
 
-    // ========================================
-    // DETECTAR TIPO DE ARCHIVO
-    // ========================================
     private function detectFileType($uploadedFile): string
     {
-        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
+        if (is_array($uploadedFile) && !empty($uploadedFile)) {
             $firstFile = reset($uploadedFile);
 
             if (is_object($firstFile) && method_exists($firstFile, 'getClientOriginalName')) {
@@ -478,9 +523,6 @@ class GlobalChat extends Page
         return 'image';
     }
 
-    // ========================================
-    // GUARDAR ARCHIVO Y OBTENER RUTA
-    // ========================================
     private function saveAndGetFilePath($uploadedFile): string
     {
         $fileType = $this->detectFileType($uploadedFile);
@@ -489,11 +531,11 @@ class GlobalChat extends Page
 
         $disk = Storage::disk('local');
 
-        if (! $disk->exists('temp')) {
+        if (!$disk->exists('temp')) {
             $disk->makeDirectory('temp');
         }
 
-        if (is_array($uploadedFile) && ! empty($uploadedFile)) {
+        if (is_array($uploadedFile) && !empty($uploadedFile)) {
             $firstFile = reset($uploadedFile);
 
             if (is_object($firstFile) && method_exists($firstFile, 'getRealPath')) {
@@ -501,7 +543,6 @@ class GlobalChat extends Page
                 if (file_exists($realPath)) {
                     $content = file_get_contents($realPath);
                     $disk->put('temp/'.$fileName, $content);
-
                     return $disk->path('temp/'.$fileName);
                 }
 
@@ -510,13 +551,12 @@ class GlobalChat extends Page
                     if (file_exists($path)) {
                         $content = file_get_contents($path);
                         $disk->put('temp/'.$fileName, $content);
-
                         return $disk->path('temp/'.$fileName);
                     }
                 }
             }
 
-            if (! is_object($firstFile)) {
+            if (!is_object($firstFile)) {
                 return $this->saveAndGetFilePath($firstFile);
             }
         }
@@ -539,7 +579,6 @@ class GlobalChat extends Page
                 if (file_exists($path)) {
                     $content = file_get_contents($path);
                     $disk->put('temp/'.$fileName, $content);
-
                     return $disk->path('temp/'.$fileName);
                 }
             }
@@ -558,7 +597,6 @@ class GlobalChat extends Page
                             $content = file_get_contents($file->getRealPath());
                             $tempFileName = 'msg_'.uniqid().'_'.time().'.'.$extension;
                             $disk->put('temp/'.$tempFileName, $content);
-
                             return $disk->path('temp/'.$tempFileName);
                         }
                     }
@@ -579,7 +617,6 @@ class GlobalChat extends Page
                             $content = file_get_contents($file->getRealPath());
                             $tempFileName = 'msg_'.uniqid().'_'.time().'.'.$extension;
                             $disk->put('temp/'.$tempFileName, $content);
-
                             return $disk->path('temp/'.$tempFileName);
                         }
                     }
@@ -592,7 +629,6 @@ class GlobalChat extends Page
             if (file_exists($realPath)) {
                 $content = file_get_contents($realPath);
                 $disk->put('temp/'.$fileName, $content);
-
                 return $disk->path('temp/'.$fileName);
             }
         }
@@ -607,66 +643,62 @@ class GlobalChat extends Page
         }
     }
 
-    // ========================================
-    // TOGGLE VIEW MODE
-    // ========================================
     public function toggleViewMode()
     {
         $this->viewMode = $this->viewMode === 'image' ? 'text' : 'image';
 
-        // Si cambia a modo imagen, desactivar el filtro
         if ($this->viewMode === 'image') {
             $this->hideEmptyMessages = false;
         }
 
-        // Si cambia a modo texto, extraer mensajes que no tengan el hidden_message
         if ($this->viewMode === 'text') {
             $this->extractAllMessages();
         }
     }
 
-    // ========================================
-    // TOGGLE HIDE EMPTY MESSAGES
-    // ========================================
     public function toggleHideEmptyMessages()
     {
-        $this->hideEmptyMessages = ! $this->hideEmptyMessages;
+        $this->hideEmptyMessages = !$this->hideEmptyMessages;
     }
 
-    // ========================================
-    // COMPUTED PROPERTY: Mensajes filtrados
-    // ========================================
     public function getFilteredMessagesProperty()
     {
-        if ($this->viewMode !== 'text' || ! $this->hideEmptyMessages) {
+        if ($this->viewMode !== 'text' || !$this->hideEmptyMessages) {
             return $this->messages;
         }
 
-        // Filtrar mensajes que tienen contenido oculto válido
         return array_values(array_filter($this->messages, function ($message) {
             $hiddenMsg = $message['hidden_message'] ?? null;
 
-            // Mantener si:
-            // - Está siendo extraído (null)
-            // - Tiene mensaje válido (no empieza con [Sin mensaje] ni [Error])
             return $hiddenMsg === null ||
-                (! str_starts_with($hiddenMsg, '[Sin mensaje') &&
-                    ! str_starts_with($hiddenMsg, '[Error'));
+                (!str_starts_with($hiddenMsg, '[Sin mensaje') &&
+                    !str_starts_with($hiddenMsg, '[Error'));
         }));
     }
 
+    // ========================================
+    // ✅ MÉTODO CORREGIDO: handleNewGlobalMessage
+    // ========================================
     #[On('echo:global-chat,.new-global-message')]
     public function handleNewGlobalMessage($payload)
     {
-        dd('asdas');
         $fileType = $this->getFileType($payload['message']);
 
         $newMessage = [
             'id' => $payload['id'],
             'message' => $payload['message'],
-            'hidden_message' => $payload['hidden_message'] ?? null, // Usar el hidden_message del payload
             'file_type' => $fileType,
             'file_url' => $payload['message'] ? Storage::url($payload['message']) : null,
+
+            // ✅ Campos de contenido oculto
+            'hidden_content_type' => $payload['hidden_content_type'] ?? null,
+            'hidden_message' => $payload['hidden_message'] ?? null,
+            'hidden_document_path' => $payload['hidden_document_path'] ?? null,
+            'hidden_document_filename' => $payload['hidden_document_filename'] ?? null,
+            'hidden_document_mime_type' => $payload['hidden_document_mime_type'] ?? null,
+            'hidden_document_size' => $payload['hidden_document_size'] ?? null,
+            'is_password_protected' => $payload['is_password_protected'] ?? false,
+
             'user' => $payload['user'],
             'created_at' => $payload['timestamp'],
             'human_time' => $payload['human_time'],
@@ -674,18 +706,20 @@ class GlobalChat extends Page
             'is_own' => $payload['user']['id'] === Auth::id(),
         ];
 
-        // Si estamos en modo texto y no tiene hidden_message, extraer ahora
-        if ($this->viewMode === 'text' && $newMessage['hidden_message'] === null) {
+        // Si estamos en modo texto y no tiene hidden_content_type, extraer ahora
+        if ($this->viewMode === 'text' && !isset($newMessage['hidden_content_type'])) {
             if ($fileType === 'image') {
                 $this->extractSingleImage($payload['id']);
             } elseif ($fileType === 'audio') {
                 $this->extractSingleAudio($payload['id']);
             }
 
-            // Recargar el mensaje actualizado desde la BD
             $chatMessage = ChatMessage::find($payload['id']);
             if ($chatMessage) {
+                $newMessage['hidden_content_type'] = $chatMessage->hidden_content_type;
                 $newMessage['hidden_message'] = $chatMessage->hidden_message;
+                $newMessage['hidden_document_path'] = $chatMessage->hidden_document_path;
+                $newMessage['hidden_document_filename'] = $chatMessage->hidden_document_filename;
             }
         }
 
@@ -697,11 +731,11 @@ class GlobalChat extends Page
 
         $this->dispatch('$refresh');
         $this->js(<<<'JS'
-        setTimeout(() => {
-            const event = new Event('scroll-to-bottom');
-            window.dispatchEvent(event);
-        }, 100);
-    JS);
+            setTimeout(() => {
+                const event = new Event('scroll-to-bottom');
+                window.dispatchEvent(event);
+            }, 100);
+        JS);
     }
 
     public function updateConnectionStatus($status)

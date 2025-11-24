@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div class="mx-auto xl:min-w-[80rem] space-y-8 pb-20 md:pb-8">
+    <div class="mx-auto xl:min-w-[80rem] max-w-[60rem] space-y-8 pb-20 md:pb-8">
 
         {{-- Header Principal --}}
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-8 border border-slate-200 dark:border-slate-700/50 shadow-sm">
@@ -339,7 +339,7 @@
                     <div class="flex md:flex-col gap-2">
                         {{-- Botón Mensaje Oculto --}}
                         <button
-                            wire:click="$set('embedMode', 'message'); $set('extractMode', 'message')"
+                            wire:click="setBothModes('message')"
                             class="group/btn relative flex items-center justify-center md:justify-start gap-2.5 px-3 py-3 md:px-4 md:py-3 rounded-xl text-sm font-medium transition-all duration-300 overflow-hidden
                                 {{ $embedMode === 'message'
                                     ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30 scale-105'
@@ -363,7 +363,7 @@
 
                         {{-- Botón Documento Oculto --}}
                         <button
-                            wire:click="$set('embedMode', 'document'); $set('extractMode', 'document')"
+                            wire:click="setBothModes('document')"
                             class="group/btn relative flex items-center justify-center md:justify-start gap-2.5 px-3 py-3 md:px-4 md:py-3 rounded-xl text-sm font-medium transition-all duration-300 overflow-hidden
                                 {{ $embedMode === 'document'
                                     ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30 scale-105'

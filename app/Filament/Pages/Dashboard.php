@@ -47,6 +47,17 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
     public ?array $extractData = [];
 
+    public function setBothModes($mode)
+    {
+        $this->embedMode = $mode;
+        $this->extractMode = $mode;
+
+        // Limpiar resultados anteriores
+        $this->embedResult = null;
+        $this->extractResult = null;
+
+    }
+
     // Resultados
     public ?string $embedResult = null;
 
@@ -59,6 +70,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
             'extractForm',
         ];
     }
+
 
     // ========================================
     // MÉTODO: Detectar tipo de archivo
