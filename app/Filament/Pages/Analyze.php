@@ -52,7 +52,7 @@ class Analyze extends Page
     }
 
     // ========================================
-    // NUEVO: Detectar tipo de archivo por extensión (IDÉNTICO AL DASHBOARD)
+    // NUEVO: Detectar tipo de archivo por extensión
     // ========================================
     private function detectFileType($uploadedFile): string
     {
@@ -77,7 +77,7 @@ class Analyze extends Page
 
         $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
-        // Detectar por extensión (IDÉNTICO AL DASHBOARD)
+        // Detectar por extensión
         if (in_array($extension, ['wav'])) {
             return 'audio';
         } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'bmp'])) {
@@ -88,7 +88,7 @@ class Analyze extends Page
     }
 
     // ========================================
-    // MÉTODO MEJORADO: Guardar archivo directamente en storage y obtener ruta (IDÉNTICO AL DASHBOARD)
+    // MÉTODO MEJORADO: Guardar archivo directamente en storage y obtener ruta
     // ========================================
     private function saveAndGetFilePath($uploadedFile): string
     {
@@ -228,7 +228,7 @@ class Analyze extends Page
     }
 
     // ========================================
-    // MÉTODO: Limpiar archivo temporal (IDÉNTICO AL DASHBOARD)
+    // MÉTODO: Limpiar archivo temporal
     // ========================================
     private function cleanupTempFile(string $path): void
     {
@@ -238,7 +238,7 @@ class Analyze extends Page
     }
 
     // ========================================
-    // FORMULARIO DE ANÁLISIS - SIN SELECT (IDÉNTICO AL DASHBOARD)
+    // FORMULARIO DE ANÁLISIS
     // ========================================
     public function analyzeForm(Schema $form): Schema
     {
@@ -256,7 +256,7 @@ class Analyze extends Page
                             ])
                             ->maxSize(10240) // 10MB
                             ->required()
-                            ->storeFiles(false) // ✅ IDÉNTICO AL DASHBOARD
+                            ->storeFiles(false)
                             ->helperText('⚠️ Formatos: PNG, JPG, JPEG, WAV. Máximo 10MB')
                             ->live(),
 
@@ -274,7 +274,7 @@ class Analyze extends Page
     }
 
     // ========================================
-    // ACCIÓN: ANALIZAR ARCHIVO - AUTO-DETECT (IDÉNTICO AL DASHBOARD)
+    // ACCIÓN: ANALIZAR ARCHIVO - AUTO-DETECT
     // ========================================
     public function analyzeFile(): void
     {
@@ -285,10 +285,10 @@ class Analyze extends Page
                 throw new \Exception('Debe seleccionar un archivo');
             }
 
-            // ✅ Detectar tipo automáticamente (IDÉNTICO AL DASHBOARD)
+            // ✅ Detectar tipo automáticamente
             $fileType = $this->detectFileType($fileData);
 
-            // ✅ Guardar archivo (sin pasar fileType como parámetro)
+            // ✅ Guardar archivo
             $filePath = $this->saveAndGetFilePath($fileData);
 
             if (! file_exists($filePath)) {
@@ -315,18 +315,44 @@ class Analyze extends Page
             if ($response->successful()) {
                 $this->analyzeResult = $response->json();
 
+                // ========================================
+                // ✅ NUEVA LÓGICA: Detectar tipo de contenido y preparar notificación
+                // ========================================
                 $color = $this->analyzeResult['is_infected'] ? 'danger' : 'success';
+                $title = $this->analyzeResult['verdict'] ?? 'Análisis completado';
+
+                // Determinar el cuerpo de la notificación según el tipo de contenido
+                $body = "Confianza: {$this->analyzeResult['confidence']}%";
+
+                if (isset($this->analyzeResult['summary']['document_found']) && $this->analyzeResult['summary']['document_found']) {
+                    if (isset($this->analyzeResult['summary']['document_filename'])) {
+                        $body = "📄 Documento: {$this->analyzeResult['summary']['document_filename']} | Confianza: {$this->analyzeResult['confidence']}%";
+                    } else {
+                        $body = "🔒 Documento protegido detectado | Confianza: {$this->analyzeResult['confidence']}%";
+                    }
+                } elseif (isset($this->analyzeResult['summary']['message_found']) && $this->analyzeResult['summary']['message_found']) {
+                    $messageLength = $this->analyzeResult['summary']['message_length'] ?? 0;
+                    $body = "💬 Mensaje de texto ({$messageLength} caracteres) | Confianza: {$this->analyzeResult['confidence']}%";
+                }
 
                 Notification::make()
                     ->color($color)
-                    ->title($this->analyzeResult['verdict'])
-                    ->body("Confianza: {$this->analyzeResult['confidence']}%")
+                    ->title($title)
+                    ->body($body)
+                    ->duration(5000)
                     ->send();
+
             } else {
                 $error = $response->json();
+                \Log::error('API Error:', $error);
                 throw new \Exception($error['detail'] ?? 'Error al comunicarse con la API');
             }
         } catch (\Exception $e) {
+            \Log::error('Exception in analyzeFile:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             Notification::make()
                 ->danger()
                 ->title('Error al analizar')

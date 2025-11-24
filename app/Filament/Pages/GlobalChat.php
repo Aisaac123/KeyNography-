@@ -658,6 +658,7 @@ class GlobalChat extends Page
     #[On('echo:global-chat,.new-global-message')]
     public function handleNewGlobalMessage($payload)
     {
+        dd('asdas');
         $fileType = $this->getFileType($payload['message']);
 
         $newMessage = [
