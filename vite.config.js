@@ -13,6 +13,10 @@ export default defineConfig({
         tailwindcss(),
     ],
     server: {
+        hmr: {
+            protocol: 'ws',
+            host: 'localhost',
+        },
         cors: true,
     },
 });
