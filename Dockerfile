@@ -1,10 +1,10 @@
-FROM richarvey/nginx-php-fpm:latest
+FROM webdevops/php-nginx:8.3-alpine
 WORKDIR /var/www/html
 
 # Instalar Node.js 22
 RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community nodejs npm
 
-# Copiar dependencias y código
+# Copiar dependencias primero (mejor cache de Docker)
 COPY composer.json composer.lock package.json package-lock.json ./
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
@@ -19,14 +19,24 @@ RUN composer dump-autoload --optimize \
     && php artisan livewire:publish --assets \
     && npm run build
 
-# Copiar y dar permisos al script de inicio
+# Permisos correctos para webdevops
+RUN chown -R application:application /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
+
+RUN mkdir -p /var/www/html/public/infected_files \
+    && chown -R application:application /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/infected_files \
+    && chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/infected_files
+
+RUN mkdir -p /var/www/html/public/infected_files /var/www/html/public/extracted_files \
+    && chown -R application:application /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/infected_files /var/www/html/public/extracted_files \
+    && chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/infected_files /var/www/html/public/extracted_files
+
+# Script de inicio
 COPY scripts/install.sh /var/www/html/scripts/install.sh
 RUN chmod +x /var/www/html/scripts/install.sh
 
-# Configuración de la imagen richarvey/nginx-php-fpm
-ENV WEBROOT=/var/www/html/public
-ENV RUN_SCRIPTS=1
-ENV SCRIPT_PATH=/var/www/html/scripts/install.sh
+ENV WEB_DOCUMENT_ROOT=/var/www/html/public
 
+COPY scripts/install.sh /opt/docker/provision/entrypoint.d/10-laravel.sh
+RUN chmod +x /opt/docker/provision/entrypoint.d/10-laravel.sh
 EXPOSE 80
-CMD ["/start.sh"]

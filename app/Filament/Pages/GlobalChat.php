@@ -26,7 +26,7 @@ class GlobalChat extends Page
     protected static ?string $navigationLabel = 'Chat Global';
     protected static ?string $title = '';
 
-    private string $apiBaseUrl = 'http://localhost:7000';
+    private string $apiBaseUrl = 'http://api:7000';
 
     public $messages = [];
     public $isLoading = true;

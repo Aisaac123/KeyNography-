@@ -36,7 +36,7 @@ class Analyze extends Page
     }
 
     // API Base URL
-    private string $apiBaseUrl = 'http://localhost:7000';
+    private string $apiBaseUrl = 'http://api:7000';
 
     // Estados de los formularios
     public ?array $analyzeData = [];

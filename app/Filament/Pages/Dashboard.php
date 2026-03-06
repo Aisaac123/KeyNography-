@@ -35,7 +35,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // API Base URL
-    private string $apiBaseUrl = 'http://localhost:7000';
+    private string $apiBaseUrl = 'http://api:7000';
 
     // NUEVO: Modo de operación (message o document)
     public string $embedMode = 'message';
