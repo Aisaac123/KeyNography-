@@ -35,7 +35,6 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
     }
 
     // API Base URL
-    private string $apiBaseUrl = 'http://api:7000';
 
     // NUEVO: Modo de operación (message o document)
     public string $embedMode = 'message';
@@ -418,11 +417,11 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                 }
 
                 $endpoint = $fileType === 'audio' ? '/audio/stego/embed' : '/image/stego/embed';
-                $url = $this->apiBaseUrl.$endpoint.'?message='.urlencode($message);
+                $url = config('app.api_url').$endpoint.'?message='.urlencode($message);
 
                 $response = Http::timeout(60)
                     ->attach($fieldName, file_get_contents($carrierPath), basename($carrierPath))
-                    ->post($url, ['message' => $message]);
+                    ->post($url, ['message' => $message, 'user_email' => auth()->user()->email ?? 'Anonymous']);
 
                 $this->cleanupTempFile($carrierPath);
 
@@ -466,7 +465,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     $response = Http::timeout(120)
                         ->attach($fieldName, file_get_contents($carrierPath), basename($carrierPath))
                         ->attach('document', file_get_contents($documentPath), basename($documentPath))
-                        ->post($this->apiBaseUrl.$endpoint, [
+                        ->post(config('app.api_url').$endpoint, [
                             'user_id' => $userId,
                             'password' => $password,
                         ]);
@@ -474,7 +473,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
                     $response = Http::timeout(120)
                         ->attach($fieldName, file_get_contents($carrierPath), basename($carrierPath))
                         ->attach('document', file_get_contents($documentPath), basename($documentPath))
-                        ->post($this->apiBaseUrl.$endpoint, [
+                        ->post(config('app.api_url').$endpoint, [
                             'user_id' => $userId,
                         ]);
                 }
@@ -534,7 +533,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
                 $response = Http::timeout(60)
                     ->attach($fieldName, file_get_contents($filePath), basename($filePath))
-                    ->post($this->apiBaseUrl.$endpoint);
+                    ->post(config('app.api_url').$endpoint);
 
                 $this->cleanupTempFile($filePath);
 
@@ -577,7 +576,7 @@ class Dashboard extends \Filament\Pages\Dashboard implements Forms\Contracts\Has
 
                 $response = Http::timeout(120)
                     ->attach($fieldName, file_get_contents($filePath), basename($filePath))
-                    ->post($this->apiBaseUrl.$endpoint, [
+                    ->post(config('app.api_url').$endpoint, [
                         'password' => $password,
                     ]);
 

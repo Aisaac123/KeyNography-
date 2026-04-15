@@ -35,9 +35,6 @@ class Analyze extends Page
         return Width::MaxContent;
     }
 
-    // API Base URL
-    private string $apiBaseUrl = 'http://api:7000';
-
     // Estados de los formularios
     public ?array $analyzeData = [];
 
@@ -307,7 +304,7 @@ class Analyze extends Page
                     file_get_contents($filePath),
                     basename($filePath)
                 )
-                ->post($this->apiBaseUrl.$endpoint);
+                ->post(config('app.api_url') . $endpoint);
 
             // Limpiar archivo temporal
             $this->cleanupTempFile($filePath);

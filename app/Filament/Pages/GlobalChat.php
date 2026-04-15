@@ -26,7 +26,7 @@ class GlobalChat extends Page
     protected static ?string $navigationLabel = 'Chat Global';
     protected static ?string $title = '';
 
-    private string $apiBaseUrl = 'http://api:7000';
+    private string $apiBaseUrl = '';
 
     public $messages = [];
     public $isLoading = true;
@@ -228,7 +228,7 @@ class GlobalChat extends Page
                 return;
             }
 
-            $response = $request->post($this->apiBaseUrl . '/chat/extract-batch');
+            $response = $request->post(config('app.api_url') . '/chat/extract-batch');
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -422,7 +422,7 @@ class GlobalChat extends Page
                     file_get_contents($fullPath),
                     basename($fullPath)
                 )
-                ->post($this->apiBaseUrl.'/image/stego/extract');
+                ->post(config('app.api_url').'/image/stego/extract');
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -469,7 +469,7 @@ class GlobalChat extends Page
                     file_get_contents($fullPath),
                     basename($fullPath)
                 )
-                ->post($this->apiBaseUrl.'/audio/stego/extract');
+                ->post(config('app.api_url').'/audio/stego/extract');
 
             if ($response->successful()) {
                 $result = $response->json();

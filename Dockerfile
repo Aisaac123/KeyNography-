@@ -13,6 +13,20 @@ RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction && n
 
 COPY . .
 
+# Declarar ARGs para Vite
+ARG VITE_PUSHER_APP_KEY
+ARG VITE_PUSHER_APP_CLUSTER
+ARG VITE_PUSHER_HOST
+ARG VITE_PUSHER_PORT
+ARG VITE_PUSHER_SCHEME
+
+# Convertirlos en ENV para que Vite los lea
+ENV VITE_PUSHER_APP_KEY=$VITE_PUSHER_APP_KEY
+ENV VITE_PUSHER_APP_CLUSTER=$VITE_PUSHER_APP_CLUSTER
+ENV VITE_PUSHER_HOST=$VITE_PUSHER_HOST
+ENV VITE_PUSHER_PORT=$VITE_PUSHER_PORT
+ENV VITE_PUSHER_SCHEME=$VITE_PUSHER_SCHEME
+
 # Compilar assets y preparar Laravel
 RUN composer dump-autoload --optimize \
     && php artisan filament:assets \
