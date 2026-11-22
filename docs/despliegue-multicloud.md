@@ -53,31 +53,89 @@ KeyNography se despliega de forma **multi-cloud activa-activa lógica**: la mism
 ```plantuml
 @startuml Arquitectura Alto Nivel - KeyNography MultiCloud
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+top to bottom direction
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 13
-skinparam roundcorner 12
-skinparam nodesep 40
-skinparam ranksep 60
-
-actor "Estudiante / Docente" as user
-component "Route 53 - Failover + Health Checks" as r53
-cloud "Pusher" as pusher
-
-node "AWS - Produccion primaria" as aws {
-  component "ALB (Application Load Balancer)" as alb
-  component "Elastic Beanstalk - Laravel (PHP 8.3 + Nginx)" as ebapp
-  component "Elastic Beanstalk - FastAPI (Python)" as ebapi
-  database "RDS MySQL 8 - db.t3.micro" as rds
-  storage "S3 - media / assets" as s3
+skinparam roundcorner 14
+skinparam nodesep 45
+skinparam ranksep 55
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam actor {
+  BackgroundColor #238636
+  BorderColor #2EA043
+  FontColor #FFFFFF
+}
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam database<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam database<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam storage<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam storage<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+skinparam cloud {
+  BackgroundColor #6E40C9
+  BorderColor #A371F7
+  FontColor #D2A8FF
 }
 
-node "Azure - DR / Secundario" as azure {
-  component "Container Apps - Ingress HTTPS gestionado" as caapp
-  component "Container Apps - FastAPI" as caapi
-  database "Azure Database for MySQL - Flexible B1ms" as azdb
-  storage "Blob Storage" as blob
+actor "Estudiante / Docente" as user
+component "Route 53 - Failover + Health Checks" as r53 <<ext>>
+cloud "Pusher - Canales realtime" as pusher
+
+node "AWS - Produccion primaria" {
+  component "ALB (Application Load Balancer)" as alb <<aws>>
+  component "Elastic Beanstalk - Laravel (PHP 8.3 + Nginx)" as ebapp <<aws>>
+  component "Elastic Beanstalk - FastAPI (Python)" as ebapi <<aws>>
+  database "RDS MySQL 8 - db.t3.micro" as rds <<aws>>
+  storage "S3 - media / assets" as s3 <<aws>>
+}
+
+node "Azure - DR / Secundario" {
+  component "Container Apps - Ingress HTTPS gestionado" as caapp <<azure>>
+  component "Container Apps - FastAPI" as caapi <<azure>>
+  database "Azure Database for MySQL - Flexible B1ms" as azdb <<azure>>
+  storage "Blob Storage" as blob <<azure>>
 }
 
 user --> r53 : HTTPS
@@ -106,32 +164,64 @@ caapi --> blob
 ```plantuml
 @startuml KeyNography - Diagrama de Contexto (C4 Nivel 1)
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 13
-skinparam roundcorner 12
-skinparam nodesep 50
-skinparam ranksep 60
+skinparam roundcorner 14
+skinparam nodesep 55
+skinparam ranksep 70
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam actor {
+  BackgroundColor #238636
+  BorderColor #2EA043
+  FontColor #FFFFFF
+}
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam database {
+  BackgroundColor #3D2E0B
+  BorderColor #D29922
+  FontColor #E3B341
+}
+skinparam cloud {
+  BackgroundColor #6E40C9
+  BorderColor #A371F7
+  FontColor #D2A8FF
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
 
 actor "Estudiante" as student
 actor "Docente" as teacher
 
-node "KeyNography\nPlataforma educativa de esteganografia" as keynography {
-  component "Laravel 12 + Vite" as frontend
-  component "FastAPI" as api
-  database "MySQL" as db
+node "KeyNography - Sistema\nPlataforma educativa de esteganografia multicloud" {
+  component "Frontend - Laravel 12 + Vite" as frontend
+  component "Backend - API FastAPI" as api
+  database "Datos - MySQL 8" as db
 }
 
-cloud "Pusher\nCanales realtime" as pusher
-component "Route 53\nDNS failover" as dns
-cloud "GitHub\nCI/CD" as github
+cloud "Pusher\nCanales realtime (WebSockets)" as pusher
+component "Route 53\nDNS con failover AWS/Azure" as dns <<ext>>
+cloud "GitHub\nRepositorio + GitHub Actions (CI/CD)" as github
 
 student --> keynography : Usa la plataforma (HTTPS)
 teacher --> keynography : Gestiona contenido (HTTPS)
-keynography --> pusher : Eventos realtime (WSS)
+keynography --> pusher : Emite eventos en tiempo real (WSS)
 dns --> keynography : Resuelve endpoint activo
-github --> keynography : Despliega versiones
+github --> keynography : Despliega nuevas versiones
 @enduml
 ```
 
@@ -140,34 +230,92 @@ github --> keynography : Despliega versiones
 ```plantuml
 @startuml KeyNography - Diagrama de Contenedores (C4 Nivel 2 MultiCloud)
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+left to right direction
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
-skinparam roundcorner 12
+skinparam roundcorner 14
 skinparam nodesep 40
 skinparam ranksep 60
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam actor {
+  BackgroundColor #238636
+  BorderColor #2EA043
+  FontColor #FFFFFF
+}
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam database<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam database<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam storage<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam storage<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+skinparam cloud {
+  BackgroundColor #6E40C9
+  BorderColor #A371F7
+  FontColor #D2A8FF
+}
 
 actor "Usuario (navegador)" as user
 
 node "AWS - Cluster primario" {
-  component "ALB\nTLS + balanceo + health checks" as alb
-  component "App Laravel\nPHP 8.3 + Nginx (EB/Docker)" as eb_app
-  component "API FastAPI\nPython + Uvicorn (EB/Docker)" as eb_api
-  database "MySQL 8\nRDS db.t3.micro" as rds
-  storage "S3\nObject Storage" as s3
+  component "ALB - TLS + balanceo + health checks" as alb <<aws>>
+  component "App Laravel - PHP 8.3 + Nginx (EB/Docker)" as eb_app <<aws>>
+  component "API FastAPI - Python + Uvicorn (EB/Docker)" as eb_api <<aws>>
+  database "MySQL 8 - RDS db.t3.micro" as rds <<aws>>
+  storage "S3 - Object Storage" as s3 <<aws>>
 }
 
 node "Azure - DR / Secundario" {
-  component "Ingress\nHTTPS gestionado (Container Apps)" as ca_ingress
-  component "App Laravel\nmisma imagen Docker" as ca_app
-  component "API FastAPI\nmisma imagen Docker" as ca_api
-  database "MySQL Flexible\nB1ms" as azdb
-  storage "Blob Storage" as blob
+  component "Ingress - HTTPS gestionado (Container Apps)" as ca_ingress <<azure>>
+  component "App Laravel - misma imagen Docker" as ca_app <<azure>>
+  component "API FastAPI - misma imagen Docker" as ca_api <<azure>>
+  database "MySQL Flexible - B1ms" as azdb <<azure>>
+  storage "Blob Storage" as blob <<azure>>
 }
 
 cloud "Pusher" as pusher
-component "Route 53" as r53
+component "Route 53" as r53 <<ext>>
 
 user --> r53 : DNS lookup
 r53 --> alb : Endpoint primario (HTTPS)
@@ -210,45 +358,94 @@ ca_api --> blob : Archivos
 ### 4.2 Topología AWS
 
 ```plantuml
-@startuml AWS - Topologia de Red y HA
+@startuml AWS - Topologia de Red y Alta Disponibilidad
+left to right direction
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
-skinparam roundcorner 10
-
-node "VPC 10.0.0.0/16" {
-  node "Availability Zone us-east-1a" {
-    component "ALB - Target Group: app" as tg1a
-    component "EB Instance - Laravel" as ec2a1
-    component "EB Instance - Laravel" as ec2a2
-    database "RDS Primary" as rds1
-  }
-  node "Availability Zone us-east-1b" {
-    component "ALB - Target Group: api" as tg2b
-    component "EB Instance - FastAPI" as ec2b1
-    component "EB Instance - FastAPI" as ec2b2
-  }
+skinparam roundcorner 14
+skinparam nodesep 35
+skinparam ranksep 50
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam database<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam storage<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+skinparam cloud {
+  BackgroundColor #6E40C9
+  BorderColor #A371F7
+  FontColor #D2A8FF
 }
 
-component "ALB (2 AZs)" as alb
-component "Route 53" as r53
-database "S3 (region)" as s3
-component "Secrets Manager" as sm
+component "Internet / Usuarios" as internet <<ext>>
+component "Route 53 + Health Checks" as r53 <<ext>>
 
-r53 --> alb : HTTPS :443
-alb --> tg1a : /*
-alb --> tg2b : /api/*
-tg1a --> ec2a1
-tg1a --> ec2a2
-tg2b --> ec2b1
-tg2b --> ec2b2
-ec2a1 --> rds1 : SQL
-ec2a2 --> rds1 : SQL
-ec2a1 --> sm : credenciales
-ec2b1 --> sm : credenciales
-s3 -[hidden]-> rds1
+node "AWS Cloud - Region us-east-1" {
+  node "VPC 10.0.0.0/16" {
+    node "Public Subnets (2 AZs)" {
+      component "ALB + ACM TLS\nTarget Groups: app + api" as alb <<aws>>
+    }
+    node "Private Subnets - Compute" {
+      node "ASG app - min 2 instancias (2 AZs)" as asg_app {
+        component "EC2 - EB Laravel container" as ec2app <<aws>>
+        component "EC2 - EB Laravel container" as ec2app2 <<aws>>
+      }
+      node "ASG api - min 2 instancias (2 AZs)" as asg_api {
+        component "EC2 - EB FastAPI container" as ec2api <<aws>>
+        component "EC2 - EB FastAPI container" as ec2api2 <<aws>>
+      }
+    }
+    node "Private Subnets - Data" {
+      database "RDS MySQL 8 - db.t3.micro" as rds <<aws>>
+    }
+  }
+  storage "S3 - keynography-media" as s3 <<aws>>
+  component "Secrets Manager" as sm <<aws>>
+  component "CloudWatch - Logs + Metricas" as cw <<aws>>
+}
+
+cloud "Pusher" as pusher
+
+internet --> r53 : HTTPS
+r53 --> alb : healthy -> IP del ALB
+alb --> asg_app : /*
+alb --> asg_api : /api/*
+asg_app --> rds : SQL (puerto 3306)
+asg_app --> sm : credenciales DB
+asg_app --> s3 : archivos generados
+asg_api --> s3 : archivos generados
+asg_app --> pusher : eventos realtime (WSS)
+asg_app ..> cw : logs y metricas
+asg_api ..> cw : logs y metricas
 @enduml
 ```
 
@@ -300,34 +497,85 @@ PUSHER_CLUSTER=us2
 
 ```plantuml
 @startuml Azure - Topologia Container Apps
+left to right direction
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
-skinparam roundcorner 10
-
-node "Resource Group: rg-keynography-prod" {
-  node "Container Apps Environment (Consumption)" {
-    component "app-laravel - min 1 / max 3 replicas" as appca
-    component "app-api - min 1 / max 3 replicas" as apica
-  }
-  component "ACR: acrkeynography (Basic)" as acr
-  database "MySQL Flexible - B1ms + PITR" as mysql
-  storage "Storage Account - Blob containers" as st
-  component "Key Vault" as kv
+skinparam roundcorner 14
+skinparam nodesep 40
+skinparam ranksep 50
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam database<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam storage<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+skinparam cloud {
+  BackgroundColor #6E40C9
+  BorderColor #A371F7
+  FontColor #D2A8FF
 }
 
-component "Route 53 (health check)" as r53
-cloud "Pusher" as pusher
+actor "Usuario" as user
+component "Route 53 (health check failover)" as r53 <<ext>>
 
-r53 ..> appca : failover HTTPS
+node "Microsoft Azure - Subscription Students" {
+  node "Resource Group: rg-keynography-prod" {
+    node "Container Apps Environment (Consumption)" as cae {
+      component "app-laravel - replicas 1 a 3" as appca <<azure>>
+      component "app-api - replicas 1 a 3" as apica <<azure>>
+    }
+    component "Azure Container Registry - Basic (10 GB)" as acr <<azure>>
+    database "Azure Database for MySQL Flexible - B1ms + PITR" as mysql <<azure>>
+    storage "Storage Account - Blob containers" as st <<azure>>
+    component "Key Vault - secretos" as kv <<azure>>
+    component "Azure Monitor / Log Analytics" as mon <<azure>>
+  }
+}
+
+cloud "Pusher" as pusher
+cloud "GitHub Actions - CI/CD" as gha <<ext>>
+
+user --> r53 : DNS
+r53 ..> cae : failover HTTPS
+cae --> appca : HTTP
+gha ..> acr : docker push (imagen sha)
+acr ..> cae : pull imagen
 appca --> mysql : SQL privado/VNet
 appca --> st : Blob
 apica --> st : Blob
 appca --> kv : secretos (referenciados)
 appca --> pusher : eventos WSS
-acr -[hidden]-> kv
+appca ..> mon : logs y metricas
+apica ..> mon : logs y metricas
 @enduml
 ```
 
@@ -347,28 +595,77 @@ acr -[hidden]-> kv
 
 ```plantuml
 @startuml DNS - Failover Routing Route53
+left to right direction
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
-
-actor Usuario as u
-component "Route 53\nHosted Zone" as r53
-component "Health Check\nHTTPS /up (30s)" as hc
-rectangle "Record Set: keynography.com\nFAILOVER" {
-  component "PRIMARY → AWS ALB\nSetIdentifier=aws-primary" as pri
-  component "SECONDARY → Azure CA\nSetIdentifier=azure-dr" as sec
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundcorner 14
+skinparam nodesep 40
+skinparam ranksep 50
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam actor {
+  BackgroundColor #238636
+  BorderColor #2EA043
+  FontColor #FFFFFF
 }
-rectangle "Record Set: api.keynography.com\nFAILOVER" {
-  component "PRIMARY → AWS ALB /api" as apri
-  component "SECONDARY → Azure api" as asec
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam component<<ok>> {
+  BackgroundColor #0F5323
+  BorderColor #238636
+  FontColor #56D364
+}
+skinparam component<<standby>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+
+actor "Usuario" as u
+component "Route 53 - Hosted Zone" as r53 <<ext>>
+component "Health Check - HTTPS /up cada 30s" as hc <<ext>>
+
+node "Record Set: keynography.com - FAILOVER" {
+  component "PRIMARY - AWS ALB (aws-primary)" as pri <<aws>>
+  component "SECONDARY - Azure CA (azure-dr)" as sec <<standby>>
+}
+node "Record Set: api.keynography.com - FAILOVER" {
+  component "PRIMARY - AWS ALB /api" as apri <<aws>>
+  component "SECONDARY - Azure api" as asec <<standby>>
 }
 
 u --> r53 : consulta DNS
-r53 --> hc : evalúa cada 30s
-hc --> pri : healthy?
-hc --> sec : healthy?
-pri --> r53 : responde si healthy
-sec --> r53 : responde si primary unhealthy
+r53 --> hc : evalua estado
+hc --> pri : healthy -> devuelve IP AWS
+hc --> sec : primary fallo -> devuelve IP Azure
+hc --> apri : healthy -> devuelve IP AWS
+hc --> asec : primary fallo -> devuelve IP Azure
 @enduml
 ```
 
@@ -398,28 +695,65 @@ Si se quiere cero costo: un único dominio con dos subdominios (`aws.dominio.com
 
 ```plantuml
 @startuml Estrategia de Ramas y Entornos
-left to right direction
-skinparam backgroundColor #0d1117
+!pragma layout smetana
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
-
-rectangle "Ramas" {
-  component "feature/*" as f
-  component "develop" as d
-  component "main" as m
-  component "hotfix/*" as h
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam roundcorner 14
+skinparam nodesep 45
+skinparam ranksep 60
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
 }
-rectangle "Entornos" {
-  component "Dev\n(local / EB env dev)" as ed
-  component "Staging\n(Azure Container Apps)" as es
-  component "Prod AWS\n(primario)" as ep
-  component "Prod Azure\n(DR pasivo)" as edr
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<branch>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #C9D1D9
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam component<<local>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
+
+node "Git - Ramas" {
+  component "feature/*" as f <<branch>>
+  component "develop" as d <<branch>>
+  component "main" as m <<branch>>
+  component "hotfix/*" as h <<branch>>
+}
+node "Entornos de despliegue" {
+  component "Dev - local / EB env dev" as ed <<local>>
+  component "Staging - Azure Container Apps" as es <<azure>>
+  component "Prod AWS - primario" as ep <<aws>>
+  component "Prod Azure - DR pasivo" as edr <<azure>>
 }
 
 f --> d : PR
-h --> m : PR urgente
 d --> m : release
-m --> ep : deploy automático
-d --> es : deploy automático
+h --> m : PR urgente
+m --> ep : deploy automatico
+d --> es : deploy automatico
 m --> edr : deploy programado/manual
 @enduml
 ```
@@ -523,35 +857,56 @@ Mismo patrón, con `pytest` + lint (`ruff`) en lugar de PHPUnit, imagen desde `k
 
 ```plantuml
 @startuml CI-CD - Flujo de Despliegue y Rollback
-!pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam ActivityBackgroundColor #21262D
+skinparam ActivityBorderColor #58A6FF
+skinparam ActivityFontColor #C9D1D9
+skinparam ActivityDiamondBackgroundColor #1F2937
+skinparam ActivityDiamondBorderColor #F85149
+skinparam ActivityDiamondFontColor #FF9B95
+skinparam PartitionBackgroundColor #161B22
+skinparam PartitionBorderColor #30363D
+skinparam PartitionFontColor #8B949E
+skinparam ConditionEndBackgroundColor #238636
 
 start
-:Push/merge a main;
-:GitHub Actions dispara pipeline;
-:Tests + build Vite + docker build;
-if (¿Tests fallan?) then (sí)
-  :Notificar y abortar;
-  stop
-endif
-fork
-  :Push imagen → ECR;
-  :eb deploy → AWS;
+partition "GitHub Actions - Pipeline" {
+  :Push / merge a main;
+  :Checkout + tests (PHPUnit / pytest);
+  if (¿Tests fallan?) then (sí)
+    :Notificar fallo y abortar pipeline;
+    stop
+  endif
+  :Build assets (Vite) + docker build;
+  :Push imagen inmutable (sha256) a ECR y ACR;
+}
+partition "Deploy AWS - Produccion primaria" {
+  :eb deploy -> Elastic Beanstalk;
   :Health check ALB;
-  if (¿healthy?) then (sí)
+  if (¿Healthy?) then (sí)
     :Release activo en AWS;
   else (no)
-    :eb deploy rollback automático;
+    :eb deploy rollback automatico;
   endif
-fork again
-  :Push imagen → ACR;
-  :az containerapp update → Azure;
-  :Revisión nueva al 0% → smoke test;
-  :Promover revisión si OK;
-end fork
-:Notificación (Slack/email);
+}
+partition "Deploy Azure - DR pasivo" {
+  :az containerapp update -> nueva revision;
+  :Revision al 0% + smoke test;
+  if (¿Smoke OK?) then (sí)
+    :Promover revision al 100%;
+  else (no)
+    :Revision queda inactiva (rollback trivial);
+  endif
+}
+partition "Cierre" {
+  :Notificación (Slack / email) con estado de ambos despliegues;
+}
 stop
 @enduml
 ```
@@ -564,38 +919,83 @@ stop
 
 ```plantuml
 @startuml CI-CD - Pipeline Multicloud Completo
+left to right direction
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
+skinparam roundcorner 14
+skinparam nodesep 40
+skinparam ranksep 55
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<gh>> {
+  BackgroundColor #24292E
+  BorderColor #58A6FF
+  FontColor #58A6FF
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam database<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam storage<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
 
-rectangle "GitHub" {
-  component "Repo KeyNography" as repo
-  component "GitHub Actions - workflows" as gha
-  component "Environments + Secrets (production-aws/azure)" as envs
+node "GitHub" {
+  component "Repo KeyNography" as repo <<gh>>
+  component "GitHub Actions - workflows" as gha <<gh>>
+  component "Environments + Secrets (production-aws/azure)" as envs <<gh>>
 }
 
 node "AWS" {
-  component "ECR" as ecr
-  component "Elastic Beanstalk - app + api" as eb
-  component "RDS + S3" as data
+  component "ECR - registro de imagenes" as ecr <<aws>>
+  component "Elastic Beanstalk - app + api" as eb <<aws>>
+  database "RDS MySQL" as data_aws <<aws>>
+  storage "S3 - media" as s3_aws <<aws>>
 }
 
 node "Azure" {
-  component "ACR" as acr
-  component "Container Apps - staging + prod" as ca
-  component "MySQL Flexible + Blob" as azdata
+  component "ACR - registro de imagenes" as acr <<azure>>
+  component "Container Apps - staging + prod" as ca <<azure>>
+  database "MySQL Flexible" as data_az <<azure>>
+  storage "Blob Storage" as blob_az <<azure>>
 }
 
 repo --> gha : push main
-gha --> envs : aprueba entorno
-gha --> ecr : docker push sha
-gha --> acr : docker push sha
+gha --> envs : aprueba entorno (OIDC)
+gha --> ecr : docker push sha256
+gha --> acr : docker push sha256
 ecr --> eb : eb deploy
-ecr --> data : assets/media runtime
 acr --> ca : az containerapp update
-ca --> azdata : runtime
+eb --> data_aws : runtime
+eb --> s3_aws : runtime
+ca --> data_az : runtime
+ca --> blob_az : runtime
 @enduml
 ```
 
@@ -607,23 +1007,71 @@ ca --> azdata : runtime
 
 ```plantuml
 @startuml Secuencia - Ocultar mensaje en imagen
-actor Usuario as u
-participant "Laravel (Blade/Vite)" as app
-participant "FastAPI /steganography" as api
+autonumber
+skinparam backgroundColor #0B0E14
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam sequenceArrowThickness 2
+skinparam participant {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam participant<<laravel>> {
+  BackgroundColor #0B2540
+  BorderColor #58A6FF
+  FontColor #79B8FF
+}
+skinparam participant<<fastapi>> {
+  BackgroundColor #0F2E1D
+  BorderColor #3FB950
+  FontColor #56D364
+}
+skinparam participant<<pusher>> {
+  BackgroundColor #2D1B4E
+  BorderColor #A371F7
+  FontColor #D2A8FF
+}
+skinparam database {
+  BackgroundColor #3D2E0B
+  BorderColor #D29922
+  FontColor #E3B341
+}
+skinparam actor {
+  BackgroundColor #238636
+  BorderColor #2EA043
+  FontColor #FFFFFF
+}
+
+actor "Usuario" as u
+participant "Laravel (Blade/Vite)" as app <<laravel>>
+participant "FastAPI /steganography" as api <<fastapi>>
 participant "MySQL" as db
 database "S3 / Blob" as s3
-participant "Pusher" as pusher
+participant "Pusher" as pusher <<pusher>>
 
 u -> app : Sube imagen + mensaje
-app -> db : Registra trabajo (jobs table)
+activate app
+app -> db : Registra trabajo en cola
 app -> pusher : job:created (progreso 0%)
 app -> api : POST /hide (multipart)
+activate api
 api -> api : LSB embedding (Pillow)
 api -> s3 : Guarda imagen resultante
 api --> app : { result_url, capacity }
+deactivate api
 app -> db : Guarda metadatos + resultado
 app -> pusher : job:completed
-pusher --> u : evento realtime → descarga resultado
+deactivate app
+pusher --> u : Evento realtime -> descarga resultado
+note right of pusher
+  El usuario ve el progreso y
+descarga el resultado sin polling
+end note
 @enduml
 ```
 
@@ -651,30 +1099,76 @@ Recomendación ligera: **Sentry free tier** (5k errores/mes) en ambas nubes para
 
 ```plantuml
 @startuml DR - Continuidad y Failover
+left to right direction
 !pragma layout smetana
-skinparam backgroundColor #0d1117
+skinparam backgroundColor #0B0E14
 skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
+skinparam roundcorner 14
+skinparam nodesep 40
+skinparam ranksep 60
+skinparam ArrowColor #8B949E
+skinparam ArrowFontColor #C9D1D9
+skinparam ArrowFontSize 11
+skinparam node {
+  BackgroundColor #161B22
+  BorderColor #30363D
+}
+skinparam component {
+  BackgroundColor #21262D
+  BorderColor #58A6FF
+  FontColor #C9D1D9
+}
+skinparam component<<aws>> {
+  BackgroundColor #232F3E
+  BorderColor #FF9900
+  FontColor #FF9900
+}
+skinparam component<<azure>> {
+  BackgroundColor #0B2540
+  BorderColor #0078D4
+  FontColor #7CC4FF
+}
+skinparam component<<ok>> {
+  BackgroundColor #0F5323
+  BorderColor #238636
+  FontColor #56D364
+}
+skinparam component<<alert>> {
+  BackgroundColor #3D1214
+  BorderColor #F85149
+  FontColor #FF9B95
+}
+skinparam component<<ext>> {
+  BackgroundColor #21262D
+  BorderColor #6E7681
+  FontColor #8B949E
+}
 
-rectangle "Estado NORMAL" {
-  component "Usuarios → Route53 → AWS (primario)" as n1
-  component "Azure DR: app corriendo, BD replicada (dump diario)" as n2
+node "ESTADO NORMAL" {
+  component "Route53 -> AWS PRIMARY sirviendo" as n1 <<ok>>
+  component "Azure en STANDBY - dump diario aplicado" as n2 <<azure>>
 }
-rectangle "Estado FAILOVER" {
-  component "Health check AWS falla >2min" as f1
-  component "Route53 → Azure (secundario)" as f2
-  component "Datos: última sincronización (RPO ~24h)" as f3
+node "ESTADO FAILOVER" {
+  component "Health check AWS falla sostenido" as f1 <<alert>>
+  component "Route53 -> AZURE sirve trafico" as f2 <<azure>>
+  component "Datos: ultima sync - RPO ~24h" as f3 <<alert>>
 }
-rectangle "Estado RECOVERY" {
-  component "AWS restaurado → health OK" as r1
-  component "Route53 vuelve a PRIMARY" as r2
-  component "Resync de datos Azure→AWS" as r3
+node "ESTADO RECOVERY" {
+  component "AWS restaurado - health OK" as r1 <<aws>>
+  component "Failback manual programado" as r2 <<ext>>
+  component "Resync datos Azure -> AWS" as r3 <<ext>>
 }
 
 n1 -[hidden]-> n2
 n2 -[hidden]-> f1
 f1 -[hidden]-> f2
 f2 -[hidden]-> r1
+
+n1 --> f1 : health check caido >2min
+f2 --> r1 : AWS vuelve healthy
+r3 --> n1 : failback completo
 @enduml
 ```
 
