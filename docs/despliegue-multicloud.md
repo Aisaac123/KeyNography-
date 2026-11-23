@@ -1,7 +1,9 @@
 # KeyNography — Despliegue Multi-Cloud (AWS + Azure)
 
-> **Versión:** 1.0 · **Estado:** Propuesta de arquitectura
+> **Versión:** 1.1 · **Estado:** Propuesta alineada con la IaC actual (`terraform-keynography/infra`)
 > **Alcance:** Aplicación Laravel 12 + API FastAPI + MySQL + Pusher, desplegada en AWS y Azure con CI/CD vía GitHub Actions.
+>
+> **Aclaración importante:** el Terraform despliega **ECS Fargate**, no Elastic Beanstalk, y usa **MySQL 8** (no PostgreSQL). El DR de Azure ya está implementado en IaC y reutiliza las mismas imágenes de Docker Hub: no se crea ACR ni se suben imágenes otra vez. Donde este documento dice "actual", se refiere al código de `terraform-keynography/infra`.
 
 ---
 
@@ -25,6 +27,7 @@
 10. [Continuidad de negocio y failover](#10-continuidad-de-negocio-y-failover)
 11. [Costos estimados (créditos académicos)](#11-costos-estimados-crditos-acadmicos)
 12. [Roadmap de implementación](#12-roadmap-de-implementacin)
+13. [Estado real de IaC y próximos cambios](#13-estado-real-de-iac-y-prximos-cambios)
 
 > Los diagramas están en **PlantUML**. Para verlos renderizados usa la extensión de PlantUML de VS Code, o pégalos en [plantuml.com](https://www.plantuml.com/plantuml).
 
@@ -34,17 +37,18 @@
 
 KeyNography se despliega de forma **multi-cloud activa-activa lógica**: la misma aplicación corre en **AWS** y en **Azure** de forma independiente, cada nube con su propia base de datos y almacenamiento. Un DNS con *failover routing* (Route 53) envía el tráfico al proveedor primario (AWS) y conmutaría automáticamente a Azure si AWS deja de responder.
 
-| Componente | AWS (primario) | Azure (secundario / DR) |
+| Componente | AWS (primario, implementado) | Azure (secundario / DR, propuesto) |
 |---|---|---|
-| Frontend + Backend Laravel | Elastic Beanstalk (Docker) | Azure Container Apps |
-| API FastAPI | Elastic Beanstalk (Docker) | Azure Container Apps |
-| Base de datos MySQL | RDS `db.t3.micro` | Azure Database for MySQL Flexible `B1ms` |
-| Archivos generados (audio/imagen) | S3 | Azure Blob Storage |
-| Balanceo / TLS | ALB (incluido en EB) + ACM | Ingress gestionado de Container Apps |
+| Frontend + Backend Laravel | ECS Fargate | Azure Container Apps |
+| API FastAPI | ECS Fargate | Azure Container Apps |
+| Base de datos MySQL | RDS MySQL 8 `db.t3.micro` Multi-AZ | Azure Database for MySQL Flexible `B1ms` |
+| Archivos generados (audio/imagen) | S3 (lo intenta la API con `boto3`) | Azure Blob Storage (requiere cambio de código) |
+| Balanceo / TLS | ALB externo + ALB interno, **HTTP:80 hoy** (ACM pendiente) | Ingress HTTPS gestionado de Container Apps |
+| Registro de imágenes | Docker Hub (imágenes actuales) | Las mismas imágenes de Docker Hub (sin ACR) |
 | Realtime | Pusher (SaaS, común a ambos) | Pusher (SaaS, común a ambos) |
-| DNS / Failover | Route 53 (health checks) | Route 53 health checks |
+| DNS / Failover | Route 53 health check HTTP:80 | Route 53 health check HTTPS:443 |
 
-**Decisión clave:** se reutilizan los `Dockerfile` existentes (`webdevops/php-nginx` para Laravel, imagen Python para FastAPI), por lo que el despliegue es "build peak → push registry → release", sin reescribir la aplicación.
+**Decisión clave:** se reutilizan los `Dockerfile` existentes, por lo que el despliegue es "build → push registry → nueva revisión/task", sin reescribir la aplicación. Lo que sí cambia en Azure es el almacenamiento de archivos: la API hoy depende de `boto3`/S3.
 
 ---
 
@@ -124,10 +128,10 @@ component "Route 53 - Failover + Health Checks" as r53 <<ext>>
 cloud "Pusher - Canales realtime" as pusher
 
 node "AWS - Produccion primaria" {
-  component "ALB (Application Load Balancer)" as alb <<aws>>
-  component "Elastic Beanstalk - Laravel (PHP 8.3 + Nginx)" as ebapp <<aws>>
-  component "Elastic Beanstalk - FastAPI (Python)" as ebapi <<aws>>
-  database "RDS MySQL 8 - db.t3.micro" as rds <<aws>>
+  component "ALB externo + ALB interno (HTTP:80)" as alb <<aws>>
+  component "ECS Fargate - Laravel" as ebapp <<aws>>
+  component "ECS Fargate - FastAPI" as ebapi <<aws>>
+  database "RDS MySQL 8 - db.t3.micro Multi-AZ" as rds <<aws>>
   storage "S3 - media / assets" as s3 <<aws>>
 }
 
@@ -138,17 +142,16 @@ node "Azure - DR / Secundario" {
   storage "Blob Storage" as blob <<azure>>
 }
 
-user --> r53 : HTTPS
+user --> r53 : consulta DNS
 r53 --> alb : primario (healthy)
 r53 ..> caapp : secundario (failover)
-alb --> ebapp
-alb --> ebapi : /api/*
+alb --> ebapp : /*
+ebapp --> ebapi : API_URL (ALB interno)
 ebapp --> rds
-ebapp --> s3
 ebapi --> s3
 ebapp --> pusher : eventos realtime
+caapp --> caapi : API_URL (FQDN interno)
 caapp --> azdb
-caapp --> blob
 caapi --> blob
 @enduml
 ```
@@ -207,7 +210,7 @@ skinparam component<<ext>> {
 actor "Estudiante" as student
 actor "Docente" as teacher
 
-node "KeyNography - Sistema\nPlataforma educativa de esteganografia multicloud" {
+node "KeyNography - Sistema\nPlataforma educativa de esteganografia multicloud" as keynography {
   component "Frontend - Laravel 12 + Vite" as frontend
   component "Backend - API FastAPI" as api
   database "Datos - MySQL 8" as db
@@ -299,10 +302,10 @@ skinparam cloud {
 actor "Usuario (navegador)" as user
 
 node "AWS - Cluster primario" {
-  component "ALB - TLS + balanceo + health checks" as alb <<aws>>
-  component "App Laravel - PHP 8.3 + Nginx (EB/Docker)" as eb_app <<aws>>
-  component "API FastAPI - Python + Uvicorn (EB/Docker)" as eb_api <<aws>>
-  database "MySQL 8 - RDS db.t3.micro" as rds <<aws>>
+  component "ALB externo + interno - balanceo y health checks" as alb <<aws>>
+  component "App Laravel - ECS Fargate" as eb_app <<aws>>
+  component "API FastAPI - ECS Fargate (7000)" as eb_api <<aws>>
+  database "MySQL 8 - RDS db.t3.micro Multi-AZ" as rds <<aws>>
   storage "S3 - Object Storage" as s3 <<aws>>
 }
 
@@ -318,19 +321,17 @@ cloud "Pusher" as pusher
 component "Route 53" as r53 <<ext>>
 
 user --> r53 : DNS lookup
-r53 --> alb : Endpoint primario (HTTPS)
+r53 --> alb : Endpoint primario (HTTP hoy)
 r53 ..> ca_ingress : Endpoint secundario (HTTPS)
 alb --> eb_app : /*
-alb --> eb_api : /api/*
+eb_app --> eb_api : API_URL (ALB interno)
 eb_app --> rds : SQL
-eb_app --> s3 : Archivos
-eb_api --> s3 : Archivos
+eb_api --> s3 : Archivos (boto3)
 eb_app --> pusher : Eventos (WSS)
-ca_ingress --> ca_app : HTTP
-ca_ingress --> ca_api : HTTP
+ca_ingress --> ca_app : HTTPS
+ca_app --> ca_api : API_URL (FQDN interno)
 ca_app --> azdb : SQL
-ca_app --> blob : Archivos
-ca_api --> blob : Archivos
+ca_api --> blob : Archivos (requiere cambio de código)
 @enduml
 ```
 
@@ -342,18 +343,16 @@ ca_api --> blob : Archivos
 
 | Servicio | Uso | Capa gratuita / créditos |
 |---|---|---|
-| **Elastic Beanstalk** | Hosting Laravel + FastAPI (plataforma Docker) | Sin costo extra sobre EC2; incluye **ALB, ASG, health checks y auto-scaling** |
-| **EC2 `t3.micro`/`t2.micro`** | Instancias detrás del ASG de EB | 750 h/mes gratis primer año; en Academy se cubre con créditos |
-| **Application Load Balancer** | Terminación TLS + balanceo | ~$16–22/mes — **cubierto por créditos**; es el componente que habilita HA real |
-| **RDS MySQL `db.t3.micro`** | Base de datos | 750 h/mes gratis primer año (Single-AZ); Multi-AZ duplica costo |
-| **S3** | Medios generados + assets | Primeros 5 GB gratis permanente |
-| **ACM** | Certificado TLS `*.keynography...` | Gratis |
+| **ECS Fargate** | 2 servicios: Laravel y FastAPI | Se paga por vCPU/GB-s; bajo consumo en el MVP |
+| **Application Load Balancer** | 2 ALB: externo (público) e interno (`API_URL`) | ~$16–22/mes **cada uno** — cubierto por créditos |
+| **RDS MySQL 8 `db.t3.micro`** | Base de datos (`keynography`) | Configurado con `multi_az = true`, así que no es gratis |
+| **S3** | Intento de subida de archivos desde la API | Primeros 5 GB gratis permanente |
+| **ACM** | Certificado TLS para los ALB | Gratis, pero **aún no configurado**: los listeners son HTTP:80 |
 | **Route 53** | Failover + health checks | Hosted zone $0.50/mes + queries mínimas |
-| **ECR** | Registro de imágenes Docker | Primeros 500 MB/mes gratis |
+| **Docker Hub / ECR** | Registro de imágenes | Las imágenes actuales son de Docker Hub; ECR es opcional |
 | **CloudWatch** | Logs y métricas | Tier básico gratis |
-| **SQS** *(opcional)* | Cola para jobs | 1M requests/mes gratis |
 
-> **Nota honesta sobre "gratuito":** los servicios de balanceo (ALB) y RDS no tienen free tier permanente en AWS; dependen de los **créditos de AWS Academy** (típicamente $100–200) o del free tier del primer año. Es la opción correcta para cumplir el requisito de LB + HA.
+> **Nota honesta sobre "gratuito":** los ALB, Fargate y RDS no tienen free tier permanente en AWS; se cubren con **créditos de AWS Academy** (típicamente $100–200) o del free tier del primer año. Son el coste principal del despliegue.
 
 ### 4.2 Topología AWS
 
@@ -412,70 +411,69 @@ component "Route 53 + Health Checks" as r53 <<ext>>
 node "AWS Cloud - Region us-east-1" {
   node "VPC 10.0.0.0/16" {
     node "Public Subnets (2 AZs)" {
-      component "ALB + ACM TLS\nTarget Groups: app + api" as alb <<aws>>
+      component "ALB externo (HTTP:80)" as alb <<aws>>
     }
     node "Private Subnets - Compute" {
-      node "ASG app - min 2 instancias (2 AZs)" as asg_app {
-        component "EC2 - EB Laravel container" as ec2app <<aws>>
-        component "EC2 - EB Laravel container" as ec2app2 <<aws>>
-      }
-      node "ASG api - min 2 instancias (2 AZs)" as asg_api {
-        component "EC2 - EB FastAPI container" as ec2api <<aws>>
-        component "EC2 - EB FastAPI container" as ec2api2 <<aws>>
-      }
+      component "ECS Fargate - Laravel (2 tareas)" as fargate_app <<aws>>
+      component "ALB interno (HTTP:80)" as intalb <<aws>>
+      component "ECS Fargate - FastAPI (2 tareas)" as fargate_api <<aws>>
     }
     node "Private Subnets - Data" {
-      database "RDS MySQL 8 - db.t3.micro" as rds <<aws>>
+      database "RDS MySQL 8 - db.t3.micro Multi-AZ" as rds <<aws>>
     }
   }
-  storage "S3 - keynography-media" as s3 <<aws>>
-  component "Secrets Manager" as sm <<aws>>
+  storage "S3 - bucket configurado por S3_BUCKET_NAME" as s3 <<aws>>
+  component "Task definition - variables y secretos" as sm <<aws>>
   component "CloudWatch - Logs + Metricas" as cw <<aws>>
 }
 
 cloud "Pusher" as pusher
 
-internet --> r53 : HTTPS
-r53 --> alb : healthy -> IP del ALB
-alb --> asg_app : /*
-alb --> asg_api : /api/*
-asg_app --> rds : SQL (puerto 3306)
-asg_app --> sm : credenciales DB
-asg_app --> s3 : archivos generados
-asg_api --> s3 : archivos generados
-asg_app --> pusher : eventos realtime (WSS)
-asg_app ..> cw : logs y metricas
-asg_api ..> cw : logs y metricas
+internet --> r53 : DNS
+r53 --> alb : healthy -> DNS del ALB
+alb --> fargate_app : /*
+fargate_app --> intalb : API_URL
+intalb --> fargate_api : puerto 7000
+fargate_app --> rds : SQL (puerto 3306)
+fargate_app --> sm : APP_KEY / DB_PASSWORD / PUSHER
+fargate_api --> s3 : intento de subida (boto3)
+fargate_app --> pusher : eventos realtime (WSS)
+fargate_app ..> cw : logs y metricas
+fargate_api ..> cw : logs y metricas
 @enduml
 ```
 
 ### 4.3 Decisiones de diseño AWS
 
-- **Elastic Beanstalk con plataforma Docker**: se reutiliza el `Dockerfile` actual sin cambios. EB crea automáticamente el **ALB + ASG + health checks** → alta disponibilidad sin escribir infraestructura como código compleja (opcional: `eb cli`/`aws cloudformation` si se quiere IaC).
-- **Ruteo por path**: `/api/*` → target group de FastAPI; el resto → Laravel. Alternativa más limpia a mediano plazo: subdominio `api.dominio.com` con *host-based routing*.
-- **ASG mínimo 1, deseable 2**: para HA real se configura `min_size=2` repartidos en 2 AZs (costo doble de instancias, asumible con créditos). Health check del ALB reemplaza instancias unhealthy automáticamente.
-- **RDS Single-AZ** para el MVP; el failover multicloud hacia Azure cubre el escenario de desastre. RDS Multi-AZ queda como mejora futura (~$25/mes extra).
-- **Secretos** en AWS Secrets Manager (o variables de entorno del EB environment), nunca en el repo.
-- **Storage**: el volumen `storage_data` de Laravel se monta en EFS si se escala a >1 instancia; en MVP con 1–2 instancias se usa disco local efímero + S3 para lo persistente. Los `generated_audios`/`generated_images` de la API van directo a S3.
+- **ECS Fargate (ya implementado)**: los módulos `vpc`, `alb`, `ecs` y `rds` de `terraform-keynography/infra` son la fuente de verdad. No se planea migrar a Elastic Beanstalk.
+- **Dos ALB, sin ruteo por path**: el ALB externo envía todo a Laravel; Laravel llama a la API por `API_URL`, que apunta al ALB interno. No existe `/api/*` en el código actual.
+- **Health checks**: ALB externo contra `/` de Laravel; ALB interno contra `/health` de FastAPI. ECS reemplaza tareas unhealthy.
+- **RDS MySQL 8 Multi-AZ**: `db.t3.micro` en `terraform.tfvars`, `multi_az = true` en el módulo, cifrado y 7 días de backup. Es un coste real, no free tier.
+- **Secretos**: hoy `APP_KEY` y las claves Pusher están en claro en `modules/ecs/main.tf` y `db_password` en `terraform.tfvars`. Deben moverse a variables `sensitive`/Key Vault; si se rota `APP_KEY`, usar el **mismo valor en AWS y Azure** para no invalidar sesiones en el failover.
+- **Storage real**: Laravel usa `FILESYSTEM_DISK=local` y escribe en `public/infected_files/` y `public/extracted_files/`; no hay EFS ni S3 en Laravel. La API intenta subir a S3 con `boto3`, pero si falla igual devuelve `file_base64` y el flujo sigue.
 - **Pusher** se mantiene como SaaS común a ambos proveedores (WebSockets gestionados; el free tier de Pusher alcanza para el proyecto).
 
 ### 4.4 Variables de entorno AWS (ejemplo)
 
 ```env
+# Valores inyectados hoy por modules/ecs/main.tf
 APP_ENV=production
-APP_URL=https://keynography.tudominio.com
+APP_URL=http://<ext_alb_dns>
+API_URL=http://<int_alb_dns>
 DB_CONNECTION=mysql
 DB_HOST=<rds-endpoint>
+DB_PORT=3306
 DB_DATABASE=keynography
-FILESYSTEM_DISK=s3
-AWS_BUCKET=keynography-media
+DB_USERNAME=keynography_user
+FILESYSTEM_DISK=local
 QUEUE_CONNECTION=database
-API_URL=https://api.tudominio.com   # o https://dominio.com/api si se usa path routing
 PUSHER_APP_ID=...
-PUSHER_KEY=...
-PUSHER_SECRET=...
-PUSHER_CLUSTER=us2
+PUSHER_APP_KEY=...
+PUSHER_APP_SECRET=...
+PUSHER_APP_CLUSTER=...
 ```
+
+La task definition de la API Python solo inyecta `APP_ENV=production`; `S3_BUCKET_NAME` y las credenciales AWS **no están configuradas en Terraform**, así que la API usa los valores por defecto del código. En Azure Terraform ya inyecta `STORAGE_BACKEND`, `AZURE_STORAGE_ACCOUNT_NAME` y `AZURE_STORAGE_CONTAINER_NAME`, pero la API todavía no las lee.
 
 ---
 
@@ -486,8 +484,9 @@ PUSHER_CLUSTER=us2
 | Servicio | Uso | Capa gratuita / créditos |
 |---|---|---|
 | **Azure Container Apps** | Hosting Laravel + FastAPI (consumo) | ~180 000 vCPU-s y 2M requests/mes gratis; HTTPS ingress gestionado (equivale a LB+TLS) |
-| **Azure Container Registry** | Imágenes Docker | Basic: 10 GB incluidos |
-| **Azure Database for MySQL Flexible Server** | MySQL `B1ms` Burstable | **Gratis 12 meses** para estudiantes |
+| **Docker Hub** | Imágenes existentes del front y la API | No se crea ACR: Azure usa las mismas imágenes |
+| **Azure NAT Gateway** | Salida a Internet de Container Apps | De pago: ~$33/mes |
+| **Azure Database for MySQL Flexible Server** | MySQL `B1ms` Burstable | De pago con el crédito de $100 |
 | **Azure Blob Storage** | Medios generados | 5 GB gratis 12 meses |
 | **Azure DNS** *(opcional)* | Zona DNS | $0.50/mes por zona |
 | **Azure Monitor / Log Analytics** | Logs y métricas | 5 GB/mes gratis |
@@ -553,7 +552,8 @@ node "Microsoft Azure - Subscription Students" {
       component "app-laravel - replicas 1 a 3" as appca <<azure>>
       component "app-api - replicas 1 a 3" as apica <<azure>>
     }
-    component "Azure Container Registry - Basic (10 GB)" as acr <<azure>>
+    component "Docker Hub - imagenes existentes" as hub <<ext>>
+    component "NAT Gateway - salida a Internet" as nat <<azure>>
     database "Azure Database for MySQL Flexible - B1ms + PITR" as mysql <<azure>>
     storage "Storage Account - Blob containers" as st <<azure>>
     component "Key Vault - secretos" as kv <<azure>>
@@ -567,8 +567,8 @@ cloud "GitHub Actions - CI/CD" as gha <<ext>>
 user --> r53 : DNS
 r53 ..> cae : failover HTTPS
 cae --> appca : HTTP
-gha ..> acr : docker push (imagen sha)
-acr ..> cae : pull imagen
+hub ..> cae : pull de las mismas imagenes :latest
+cae ..> nat : salida a Docker Hub y Pusher
 appca --> mysql : SQL privado/VNet
 appca --> st : Blob
 apica --> st : Blob
@@ -586,6 +586,15 @@ apica ..> mon : logs y metricas
 - **MySQL Flexible Server B1ms**: el tier gratuito de 12 meses encaja con el crédito de Azure for Students.
 - **Réplicas `min=1, max=3`**: HA limitada (una sola región); el failover real lo da Route 53 hacia/desde AWS. Para HA intra-Azure se puede subir a `min=2` (costo bajo en consumption).
 - **Sin replicación automática de datos** entre RDS y MySQL en el MVP (complejidad alta). Estrategia: **cold standby** — la BD de Azure se mantiene migrada periódicamente (dump/restauración) y se promueve manualmente en failover. Ver sección 10.
+- **Subnetes delegadas**: MySQL Flexible necesita `Microsoft.DBforMySQL/flexibleServers` y Container Apps `Microsoft.App/environments`; no pueden compartir subred.
+- **Nombres globales**: Storage Account, Key Vault y MySQL Flexible exigen nombres únicos globalmente; no reutilizar `app_name = "mi-app"`.
+- **Autenticación del provider**: `terraform plan` en Azure requiere `ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET` y `ARM_TENANT_ID` (o login interactivo), además de `features {}` en el provider.
+
+### 5.4 Cambios de aplicación necesarios en Azure
+
+- **Backend (imprescindible)**: `app/libs/utils.py` usa `boto3` para S3. Para que Azure sea independiente hay que soportar Azure Blob Storage (`azure-storage-blob`) y registrar la dependencia en `requirements.txt`.
+- **Frontend (no imprescindible)**: Laravel usa `FILESYSTEM_DISK=local`; no hay que tocarlo para arrancar en Azure. Queda como limitación que los archivos generados en una nube no existen en la otra tras un failover.
+- **Sesiones**: usar el mismo `APP_KEY` en AWS y Azure para que el failover no cierre las sesiones; guardarlo como secreto, no en el repo.
 
 ---
 
@@ -649,30 +658,26 @@ skinparam component<<ext>> {
 
 actor "Usuario" as u
 component "Route 53 - Hosted Zone" as r53 <<ext>>
-component "Health Check - HTTPS /up cada 30s" as hc <<ext>>
+component "Health Check - HTTP / cada 30s" as hc <<ext>>
 
-node "Record Set: keynography.com - FAILOVER" {
-  component "PRIMARY - AWS ALB (aws-primary)" as pri <<aws>>
-  component "SECONDARY - Azure CA (azure-dr)" as sec <<standby>>
-}
-node "Record Set: api.keynography.com - FAILOVER" {
-  component "PRIMARY - AWS ALB /api" as apri <<aws>>
-  component "SECONDARY - Azure api" as asec <<standby>>
+node "Record CNAME: keynography.com - FAILOVER" {
+  component "PRIMARY - AWS ALB externo" as pri <<aws>>
+  component "SECONDARY - Azure Container App" as sec <<standby>>
 }
 
 u --> r53 : consulta DNS
 r53 --> hc : evalua estado
-hc --> pri : healthy -> devuelve IP AWS
-hc --> sec : primary fallo -> devuelve IP Azure
-hc --> apri : healthy -> devuelve IP AWS
-hc --> asec : primary fallo -> devuelve IP Azure
+hc --> pri : healthy -> devuelve CNAME AWS
+hc --> sec : primary fallo -> devuelve CNAME Azure
 @enduml
 ```
 
 - **Failover routing** (no simple latency): Route 53 devuelve AWS si el health check pasa; si falla de forma sostenida, devuelve Azure automáticamente (DNS TTL ~60s → propagación rápida).
-- Health check contra un endpoint barato: `GET /up` de Laravel o `GET /health` de FastAPI.
+- **CNAME, no alias**: un alias de Route 53 no puede apuntar al FQDN de Azure Container Apps. Para el apex (`keynography.com`) haría falta un registro `A` con una IP pública reservada; el CNAME se usa en subdominios (`www`, `app`).
+- **Solo el front se expone**: la API se llama por `API_URL` (ALB interno en AWS, FQDN interno en Azure). No publicar `api.keynography.com` si no se añade antes un listener público en el ALB externo.
+- **Health checks HTTP**: los ALB actuales solo escuchan HTTP:80 y no hay certificado ACM. Usar `GET /` en Laravel y `GET /health` en la API; si se configura HTTPS después, migrar los health checks.
 - Coste: health checks adicionales ~$0.50/mes c/u — trivial con créditos.
-- **Limitación conocida**: el failover es de *aplicación*, no de datos. Ver sección 10.
+- **Limitación conocida**: el failover es de *aplicación*, no de datos ni de archivos generados. Ver sección 10.
 
 ### 6.1.1 Alternativa sin Route 53
 
@@ -682,10 +687,10 @@ Si se quiere cero costo: un único dominio con dos subdominios (`aws.dominio.com
 
 | Capa | AWS | Azure |
 |---|---|---|
-| Compute | ASG min 2, 2 AZs, health checks ALB | Container Apps min 1–2 réplicas, réplicas en distintos nodos |
-| Datos | RDS Single-AZ (+Multi-AZ opcional) | MySQL Flexible con alta disponibilidad opcional (costo extra) |
-| TLS | ACM automático en ALB | Certificado gestionado en ingress |
-| Recuperación | EB rollback + snapshots RDS | Revisión de revisiones de Container Apps + backups MySQL |
+| Compute | ECS Fargate: 2 tareas por servicio en 2 AZs, health checks ALB | Container Apps min 1–2 réplicas, réplicas en distintos nodos |
+| Datos | RDS MySQL 8 Multi-AZ (7 días de backup) | MySQL Flexible con alta disponibilidad opcional (costo extra) |
+| TLS | Sin TLS hoy (HTTP:80); ACM + listener 443 pendiente | Certificado gestionado en ingress |
+| Recuperación | `terraform apply` de la task definition anterior + snapshots RDS | Revisión de revisiones de Container Apps + backups MySQL |
 
 ---
 
@@ -743,7 +748,7 @@ node "Git - Ramas" {
   component "hotfix/*" as h <<branch>>
 }
 node "Entornos de despliegue" {
-  component "Dev - local / EB env dev" as ed <<local>>
+  component "Dev - local / Terraform dev" as ed <<local>>
   component "Staging - Azure Container Apps" as es <<azure>>
   component "Prod AWS - primario" as ep <<aws>>
   component "Prod Azure - DR pasivo" as edr <<azure>>
@@ -762,7 +767,7 @@ m --> edr : deploy programado/manual
 |---|---|---|
 | Local | `php artisan serve` + `uvicorn` + docker-compose | Desarrollo |
 | Staging | Azure Container Apps (`--environment staging`) | QA/pre-producción, además actúa como DR tibio |
-| Producción AWS | EB environments `keynography-prod` + `keynography-api` | Primario, failover origen |
+| Producción AWS | ECS cluster con servicios Laravel y Python (Terraform) | Primario, failover origen |
 | Producción Azure | Container Apps prod | DR pasivo; mismo artefacto inmutable |
 
 **Principio:** un artefacto Docker inmutable por commit → el mismo `sha256` corre en staging y en ambas nubes. Nada de "en mi máquina funcionaba".
@@ -780,8 +785,9 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  EB_APP: keynography
-  EB_ENV: keynography-prod
+  ECS_CLUSTER: mi-app-cluster
+  ECS_SERVICE_APP: mi-app-laravel-service
+  ECS_SERVICE_API: mi-app-python-service
 
 jobs:
   test:
@@ -800,16 +806,15 @@ jobs:
     outputs: { tag: ${{ steps.meta.outputs.tags }} }
     steps:
       - uses: docker/setup-buildx-action@v3
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: docker/login-action@v3
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}   # OIDC, sin access keys
-          aws-region: ${{ env.AWS_REGION }}
-      - uses: aws-actions/amazon-ecr-login@v2
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.ECR_REGISTRY }}/keynography-app:${{ github.sha }}
+          tags: isaacdavid1234/keynography-app:latest
 
   deploy-aws:
     needs: docker
@@ -820,12 +825,14 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Deploy Elastic Beanstalk
+      - name: Deploy ECS Fargate (nueva task definition)
         run: |
-          pip install awsebcli
-          eb init keynography --platform Docker --region $AWS_REGION
-          eb use $EB_ENV
-          eb deploy --staged --timeout 20
+          # Actualizar la task definition con la imagen nueva y luego:
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE_APP" \
+            --force-new-deployment \
+            --region "$AWS_REGION"
 
   deploy-azure:
     needs: docker
@@ -836,22 +843,22 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}          # Service Principal (OIDC recomendado)
       - run: |
-          az acr login --name ${{ secrets.ACR_NAME }}
-          docker pull ${{ secrets.ECR_REGISTRY }}/keynography-app:${{ github.sha }}
-          docker tag  ${{ secrets.ECR_REGISTRY }}/keynography-app:${{ github.sha }} \
-                       ${{ secrets.ACR_NAME }}.azurecr.io/keynography-app:${{ github.sha }}
-          docker push ${{ secrets.ACR_NAME }}.azurecr.io/keynography-app:${{ github.sha }}
+          # No se sube imagen: Azure ya apunta a las mismas imagenes de Docker Hub.
           az containerapp update \
             --name keynography-app \
-            --resource-group rg-keynography-prod \
-            --image ${{ secrets.ACR_NAME }}.azurecr.io/keynography-app:${{ github.sha }}
+            --resource-group keynography-rg \
+            --image isaacdavid1234/keynography-app:latest
+          az containerapp update \
+            --name keynography-api \
+            --resource-group keynography-rg \
+            --image isaacdavid1234/keynography-api:latest
 ```
 
-> **Detalle práctico:** como ECR y ACR son registros distintos, el paso `deploy-azure` hace *retag* de la imagen. Alternativa más limpia: construir una vez, hacer push a **ambos** registros en el job `docker` (multi-registry push con `docker buildx --push` y varios `tags`).
+> **Detalle práctico:** las imágenes `isaacdavid1234/keynography-app:latest` e `isaacdavid1234/keynography-api:latest` ya están en Docker Hub y Terraform las reutiliza en AWS y Azure. Para publicar una versión nueva, actualiza el tag en `terraform.tfvars` y vuelve a aplicar; no hace falta un registro nuevo.
 
 ### 7.3 Pipeline de la API (FastAPI)
 
-Mismo patrón, con `pytest` + lint (`ruff`) en lugar de PHPUnit, imagen desde `keyNographi API/Dockerfile`, y despliegue a los environments `keynography-api` (EB) y `keynography-api` (Container App). Puerto interno 7000/8000 según Dockerfile; el ingress/ALB lo expone como `/api/*` o `api.dominio.com`.
+Mismo patrón, con `pytest` + lint (`ruff`) en lugar de PHPUnit y el `Dockerfile` de `Esteganografia_Python_API`. El contenedor escucha en **7000**; en AWS se expone por el **ALB interno** y Laravel lo consume vía `API_URL`. No existe ruteo público `/api/*`.
 
 ### 7.4 Flujo de despliegue y rollback
 
@@ -884,15 +891,15 @@ partition "GitHub Actions - Pipeline" {
     stop
   endif
   :Build assets (Vite) + docker build;
-  :Push imagen inmutable (sha256) a ECR y ACR;
+  :Push imagen a Docker Hub (tag :latest);
 }
 partition "Deploy AWS - Produccion primaria" {
-  :eb deploy -> Elastic Beanstalk;
+  :ecs update-service -> nueva task definition;
   :Health check ALB;
   if (¿Healthy?) then (sí)
     :Release activo en AWS;
   else (no)
-    :eb deploy rollback automatico;
+    :Volver a task definition anterior;
   endif
 }
 partition "Deploy Azure - DR pasivo" {
@@ -911,7 +918,7 @@ stop
 @enduml
 ```
 
-- **AWS/EB**: rollback = `eb deploy` de la versión anterior o "Rollback" en la consola (versionado de releases nativo).
+- **AWS/ECS**: rollback = volver a la task definition anterior y ejecutar `ecs update-service`; Terraform también permite reaplicar el commit previo.
 - **Azure/Container Apps**: las revisiones inmutables permiten *traffic splitting* — se despliega la nueva revisión al 0%, se hace smoke test y se promueve al 100%. Rollback = re-etiquetar la revisión anterior.
 - **Smoke tests post-deploy** en ambos: `curl /up`, login de prueba, un ciclo esteganografía→descarga.
 
@@ -973,14 +980,14 @@ node "GitHub" {
 }
 
 node "AWS" {
-  component "ECR - registro de imagenes" as ecr <<aws>>
-  component "Elastic Beanstalk - app + api" as eb <<aws>>
-  database "RDS MySQL" as data_aws <<aws>>
+  component "Docker Hub / ECR - registro de imagenes" as ecr <<aws>>
+  component "ECS Fargate - app + api" as eb <<aws>>
+  database "RDS MySQL 8" as data_aws <<aws>>
   storage "S3 - media" as s3_aws <<aws>>
 }
 
 node "Azure" {
-  component "ACR - registro de imagenes" as acr <<azure>>
+  component "Docker Hub - imagenes existentes" as hub <<ext>>
   component "Container Apps - staging + prod" as ca <<azure>>
   database "MySQL Flexible" as data_az <<azure>>
   storage "Blob Storage" as blob_az <<azure>>
@@ -989,9 +996,9 @@ node "Azure" {
 repo --> gha : push main
 gha --> envs : aprueba entorno (OIDC)
 gha --> ecr : docker push sha256
-gha --> acr : docker push sha256
-ecr --> eb : eb deploy
-acr --> ca : az containerapp update
+gha --> hub : docker push :latest
+ecr --> eb : ecs update-service
+hub --> ca : containerapp update (sin subir imagen)
 eb --> data_aws : runtime
 eb --> s3_aws : runtime
 ca --> data_az : runtime
@@ -1049,35 +1056,34 @@ skinparam actor {
 
 actor "Usuario" as u
 participant "Laravel (Blade/Vite)" as app <<laravel>>
-participant "FastAPI /steganography" as api <<fastapi>>
+participant "FastAPI /image/stego" as api <<fastapi>>
 participant "MySQL" as db
-database "S3 / Blob" as s3
+database "S3 (solo AWS)" as s3
 participant "Pusher" as pusher <<pusher>>
 
 u -> app : Sube imagen + mensaje
 activate app
-app -> db : Registra trabajo en cola
-app -> pusher : job:created (progreso 0%)
-app -> api : POST /hide (multipart)
+app -> api : POST /image/stego/embed (multipart)
 activate api
-api -> api : LSB embedding (Pillow)
-api -> s3 : Guarda imagen resultante
-api --> app : { result_url, capacity }
+api -> api : LSB embedding (stegano/Pillow)
+api -> s3 : Intenta subir (puede fallar)
+api --> app : { file_base64, payload_size, capacity_used }
 deactivate api
-app -> db : Guarda metadatos + resultado
-app -> pusher : job:completed
+app -> app : Guarda en public/infected_files/
+app -> db : Guarda metadatos / ChatMessage
+app -> pusher : Evento (si Pusher está configurado)
 deactivate app
-pusher --> u : Evento realtime -> descarga resultado
+pusher --> u : Evento realtime (opcional)
 note right of pusher
-  El usuario ve el progreso y
-descarga el resultado sin polling
+  El flujo es sincrónico: el resultado
+ya llegó en la respuesta de la API
 end note
 @enduml
 ```
 
 ### 8.2 Flujo de lectura de archivos generados
 
-Las imágenes/audio generados viven en object storage. Recomendación: la API devuelve **URLs prefirmadas** (S3) o **SAS tokens** (Blob) con expiración corta en lugar de proxy por Laravel — menos carga y más seguro. En MVP con archivos públicos puede servirse directo desde el bucket/container con URL pública controlada.
+Hoy **no hay URLs prefirmadas ni SAS tokens**: la API devuelve el archivo en `file_base64` y Laravel lo escribe en `public/infected_files/` o `public/extracted_files/`. El intento de subida a S3 es solo un efecto secundario y sus errores no rompen el flujo. Para Azure habría que sustituir `boto3` por `azure-storage-blob` y decidir si Laravel pasa a servir desde Blob; hasta entonces, un failover no arrastra los archivos generados en la otra nube.
 
 ---
 
@@ -1085,7 +1091,7 @@ Las imágenes/audio generados viven en object storage. Recomendación: la API de
 
 | Capacidad | AWS | Azure |
 |---|---|---|
-| Logs | CloudWatch Logs (EB los envía automático) | Log Analytics (Container Apps envía automático) |
+| Logs | CloudWatch Logs (`/ecs/{app_name}/laravel`, `/ecs/{app_name}/python`) | Log Analytics (Container Apps envía automático) |
 | Métricas | CloudWatch (CPU, ALB 5xx, RDS) | Azure Monitor / Container Apps metrics |
 | Errores app | `php artisan` logs → CloudWatch; Sentry *(opcional, free tier)* | Igual → Log Analytics |
 | Uptime | Route 53 health checks cada 30 s | Mismos health checks |
@@ -1190,13 +1196,14 @@ r3 --> n1 : failback completo
 
 | Concepto | AWS/mes | Azure/mes | Notas |
 |---|---|---|---|
-| Compute app+api | ~$16–25 (2× t3.micro + ALB) | ~$0–10 (consumption) | ALB es el costo fijo principal en AWS |
-| Base de datos | ~$15 (RDS t3.micro) | $0 (12 meses gratis B1ms) | |
-| Storage | <$1 (S3 5GB gratis) | $0–2 (Blob) | |
+| ALB externo + interno | ~$32–44 | — | Dos ALB, ~$16–22 cada uno; el coste fijo principal |
+| Compute app+api | Bajo (Fargate: Laravel 0.5 vCPU/1 GB, API 0.25 vCPU/0.5 GB) | ~$0–10 (consumption) | Escalado según réplicas |
+| Base de datos | ~$25–30 (RDS `db.t3.micro` **Multi-AZ**) | $0 (12 meses gratis B1ms) | Multi-AZ duplica el coste de RDS |
+| Storage | <$1 (S3 5 GB gratis) | $0–2 (Blob) | |
 | DNS/health checks | ~$1.50 | — | Route 53 |
-| **Total estimado** | **~$32–42** | **~$0–12** | Ambos cubiertos por créditos académicos |
+| **Total estimado** | **~$60–80** | **~$0–12** | Orden de magnitud; cubierto por créditos académicos |
 
-Presupuesto sugerido de créditos: **AWS ~$50/mes**, **Azure ~$20/mes** → ~$840/año, dentro de los $100–200 de AWS Academy + $100 Azure for Students si se gestiona bien (Azure sobra; AWS es el que más consume por ALB+RDS).
+Presupuesto sugerido de créditos: **AWS ~$80/mes**, **Azure ~$20/mes**. AWS es el que más consume por los dos ALB y RDS Multi-AZ; si hay que bajar coste, el primer candidato es pasar RDS a Single-AZ (cambio de infraestructura, requiere plan y ventana de mantenimiento).
 
 ---
 
@@ -1204,31 +1211,97 @@ Presupuesto sugerido de créditos: **AWS ~$50/mes**, **Azure ~$20/mes** → ~$84
 
 | Fase | Entregable | Dependencias |
 |---|---|---|
-| **0. Prep** | Dockerfiles validados, `.dockerignore`, health endpoints (`/up`, `/health`) | — |
-| **1. AWS base** | EB env dev → prod, RDS, S3, ACM, secrets | Cuenta AWS Academy activa |
-| **2. CI/CD AWS** | Workflow test→ECR→EB con OIDC | Fase 1 |
-| **3. Azure base** | ACR, MySQL Flexible, Container Apps staging | Azure for Students activo |
-| **4. CI/CD Azure** | Workflow multi-registry + containerapp update | Fases 2–3 |
-| **5. DNS + failover** | Route 53 hosted zone, failover records, health checks | Dominios apuntando |
+| **0. Prep** | Dockerfiles validados, health endpoints (`/`, `/health`) | — |
+| **1. AWS base (ya hecho)** | Terraform con VPC, ALB externo/interno, ECS Fargate, RDS MySQL 8 | Cuenta AWS Academy activa |
+| **2. CI/CD AWS** | Workflow test → imagen → `ecs update-service` con OIDC | Fase 1 |
+| **3. Azure base (ya hecho)** | Provider `azurerm`, Resource Group, VNet con subnetes delegadas, NAT Gateway, MySQL Flexible, Storage, Key Vault, Log Analytics y Container Apps con las imágenes de Docker Hub | Azure for Students activo |
+| **4. Cambio de aplicación** | `boto3` → `azure-storage-blob` en la API; mismos `APP_KEY` y secretos Pusher en ambas nubes | Fase 3 |
+| **5. DNS + failover** | Route 53: CNAME failover + health check HTTP:80 en AWS y HTTPS:443 en Azure | Dominio y hosted zone existentes |
 | **6. DR + runbook** | Dump/restauración programada, simulacro de failover | Fase 5 |
-| **7. Endurecimiento** | Réplicas min=2, backups automatizados, alertas, Sentry | Post-MVP |
+| **7. Endurecimiento** | ACM + listener 443 en AWS, secretos fuera del repo, alertas | Post-MVP |
 
 ---
 
 ## Anexo A — Checklist de variables de entorno por entorno
 
-- `APP_ENV`, `APP_URL`, `APP_KEY` (por entorno, nunca compartida)
-- `DB_*` (endpoint regional de cada nube)
-- `FILESYSTEM_DISK` / `AWS_BUCKET` / `AZURE_STORAGE_*`
+- `APP_ENV`, `APP_URL` (según ALB externo o FQDN de Container Apps)
+- `APP_KEY`: **el mismo valor en AWS y Azure**, pero guardado como secreto, nunca en el repo
+- `DB_*` (MySQL 3306, base `keynography`, usuario `keynography_user`; endpoint regional de cada nube)
+- `FILESYSTEM_DISK=local` (hoy); la API ya recibe `STORAGE_BACKEND=azure`, `AZURE_STORAGE_ACCOUNT_NAME` y `AZURE_STORAGE_CONTAINER_NAME`, pero el código todavía usa `boto3`
 - `QUEUE_CONNECTION`, `CACHE_STORE` (database en MVP)
 - `PUSHER_*` (común)
-- `API_URL` (URL pública de la API según proveedor activo)
+- `API_URL`: ALB interno en AWS, FQDN interno de la Container App en Azure (nunca una URL pública)
 
 ## Anexo B — Decisiones descartadas (y por qué)
 
 | Alternativa | Por qué no |
 |---|---|
-| Kubernetes (EKS/AKS) | Sobre-ingeniería para este proyecto; EB+Container Apps dan el mismo resultado con 10% del esfuerzo |
+| Kubernetes (EKS/AKS) | Sobre-ingeniería para este proyecto; ECS Fargate + Container Apps dan el mismo resultado con 10% del esfuerzo |
+| Elastic Beanstalk | El repositorio ya tiene Terraform con ECS Fargate; cambiar de herramienta no aporta y obligaría a rehacer el despliegue |
 | Replicación activa de BD entre nubes | Complejidad y costo desproporcionados; cold standby + failover DNS cubre el requisito académico |
 | Serverless puro (Lambda/Lambda Azure Functions) | Laravel monolítico + sesiones/cola no encaja sin refactor grande |
 | Cloudflare como único DNS | Válido, pero Route 53 health checks + failover se integra mejor con AWS y es parte del temario |
+
+---
+
+## 13. Estado real de IaC y próximos cambios
+
+### 13.1 Lo que ya existe en `terraform-keynography/infra`
+
+- **Backend de estado**: S3 `diego-terraform-state-2026-05`, clave `infra/terraform.tfstate`, región `us-east-1`, cifrado y lock con DynamoDB `terraform_locks`. Como AWS sigue siendo primario, **no hay que migrar el estado**.
+- **Proveedores**: `hashicorp/aws ~> 5.0` y `hashicorp/azurerm ~> 4.0` (este último con `features {}` y credenciales `ARM_*`).
+- **Módulos**: `vpc`, `alb`, `ecs`, `rds` (AWS), `azure/network`, `azure/monitoring`, `azure/security`, `azure/storage`, `azure/database`, `azure/containers` y `dns` (Route 53).
+- **RDS**: MySQL 8.0, `db.t3.micro` en `terraform.tfvars` (el default de `variables.tf` es `db.t3.medium`), `multi_az = true`, 20 GB gp3 cifrados, 7 días de backup, `skip_final_snapshot = false`.
+- **Red**: VPC `10.0.0.0/16`, subredes públicas, privadas y de BD en 2 AZ.
+- **ALB**: externo público e interno privado, ambos con listener **HTTP:80**. El externo apunta a Laravel; el interno a la API en el puerto 7000.
+- **ECS**: 2 servicios Fargate (Laravel 512 CPU/1024 MB, API 256 CPU/512 MB). `APP_URL=http://<ext_alb_dns>` y `API_URL=http://<int_alb_dns>` (`modules/ecs/main.tf`). La task de la API solo inyecta `APP_ENV`. No se usa la variable `PYTHON_API_URL`.
+- **Imágenes**: `isaacdavid1234/keynography-app:latest` e `isaacdavid1234/keynography-api:latest` (Docker Hub).
+- **Secretos**: `APP_KEY` y credenciales Pusher aparecen en claro en `modules/ecs/main.tf`; `db_password`, `app_key` y `pusher_app_secret` están en `terraform.tfvars`. En Azure esos tres valores se guardan en Key Vault y se inyectan a Container Apps mediante secretos.
+- **Azure implementado**: Resource Group `keynography-rg`, VNet `10.10.0.0/16`, subnet delegada `/27` para Container Apps y `/24` para MySQL, NSG y NAT Gateway `Standard` (SKU `StandardV2` no compatible).
+- **MySQL en Azure**: Flexible `B_Standard_B1ms`, MySQL 8.0.21, zona 1, 20 GB, 7 días de backup, red privada con zona DNS `privatelink.mysql.database.azure.com`.
+- **Container Apps**: Environment con workload profile `Consumption`, apps `keynography-app:80` y `keynography-api:7000`, 0-3 réplicas y las mismas imágenes `isaacdavid1234/keynography-*:latest`. No hay ACR.
+- **DNS**: health checks y CNAME failover existen pero `failover_dns_enabled = false` por defecto; AWS se comprueba por HTTP:80 y Azure por HTTPS:443.
+- El repo no tiene `.terraform/` inicializado, así que los comandos deben empezar con `terraform init`.
+
+### 13.2 Cambios ya aplicados en Terraform
+
+| Archivo | Cambio |
+|---|---|
+| `infra/main.tf` | Provider `azurerm`, locals de tags y llamadas a los siete módulos nuevos; backend S3 intacto |
+| `infra/variables.tf`, `outputs.tf`, `terraform.tfvars` | Región Azure, subnets, nombres globales, secretos, FQDNs y bandera de DNS |
+| `infra/modules/azure/network` | Resource Group, VNet, subnetes delegadas, NSG, IP pública y NAT Gateway |
+| `infra/modules/azure/monitoring` | Log Analytics |
+| `infra/modules/azure/security` | Managed Identity, Key Vault con RBAC, tres secretos y rol `Key Vault Secrets User` |
+| `infra/modules/azure/storage` | Storage Account LRS + contenedor Blob privado |
+| `infra/modules/azure/database` | MySQL Flexible B1ms, base `keynography` y DNS privada enlazada a la VNet |
+| `infra/modules/azure/containers` | Container Apps Environment + Laravel y API con las imágenes de Docker Hub |
+| `infra/modules/dns` | Health checks y CNAME failover; desactivado por defecto |
+| `terraform-keynography/README.md` | Arquitectura, variables, outputs, coste y pasos de failover actualizados |
+
+### 13.3 Reglas para no romper el despliegue actual
+
+1. **No se tocaron** `modules/vpc`, `modules/alb`, `modules/ecs` ni `modules/rds`: AWS sigue igual.
+2. **No migrar** `db.t3.micro` a otra clase ni `multi_az` a `false` sin una ventana de cambio: son recursos con estado real.
+3. **No usar alias de Route 53** hacia Azure; usar CNAME en subdominios. El apex requiere otra solución.
+4. **No health checks HTTPS en AWS** mientras no exista ACM + listener 443. Azure sí usa HTTPS:443 porque Container Apps ya termina TLS.
+5. Los nombres de Storage Account, Key Vault y MySQL Flexible son globales: si Azure los rechaza, cámbialos en `terraform.tfvars`. No se crea ACR.
+6. `terraform plan` fallará si no están definidas `ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET` y `ARM_TENANT_ID`, o si el service principal no puede asignar roles/escribir secretos.
+7. El `APP_KEY` y las credenciales Pusher son los mismos en AWS y Azure para no invalidar sesiones durante el failover.
+8. **No ejecutar `terraform destroy` sin revisar**: ahora el root contiene AWS y Azure. NAT Gateway cuesta ~$33/mes y MySQL B1ms ~$13/mes dentro de los $100 de crédito.
+9. El backend todavía debe soportar Blob Storage en la API; sin ese cambio el DR seguiría intentando escribir en el S3 de AWS.
+
+### 13.4 Validación
+
+```bash
+cd terraform-keynography/infra
+export ARM_SUBSCRIPTION_ID=...
+export ARM_CLIENT_ID=...
+export ARM_CLIENT_SECRET=...
+export ARM_TENANT_ID=...
+terraform init
+terraform validate
+terraform plan
+terraform apply
+```
+
+Revisar después `terraform output` (`ext_alb_dns`, `int_alb_dns`, `rds_endpoint`, `ecs_cluster`, `azure_app_fqdn`, `azure_api_fqdn`, `azure_mysql_fqdn`) y probar `/` en ambos FQDNs antes de activar `failover_dns_enabled`.
